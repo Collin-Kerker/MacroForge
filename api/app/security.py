@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 from app.config import settings
+import bcrypt
 
 # bcrypt password hasher
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -9,11 +10,16 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # ── Password functions ────────────────────────────────────────
 def hash_password(plain_password: str) -> str:
-    return pwd_context.hash(plain_password)
+    pwd_bytes = plain_password.encode("utf-8")
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(pwd_bytes, salt).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(
+        plain_password.encode("utf-8"),
+        hashed_password.encode("utf-8"),
+    )
 
 
 # ── JWT functions ─────────────────────────────────────────────
