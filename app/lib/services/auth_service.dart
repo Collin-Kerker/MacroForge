@@ -15,10 +15,7 @@ class AuthService {
         'email': email,
         'password': password,
       });
-      await storage.write(
-        key: 'access_token',
-        value: response.data['access_token'],
-      );
+      await _storeTokens(response.data);
       return null;
     } on DioException catch (e) {
       return _extractError(e);
@@ -31,14 +28,16 @@ class AuthService {
         'email': email,
         'password': password,
       });
-      await storage.write(
-        key: 'access_token',
-        value: response.data['access_token'],
-      );
+      await _storeTokens(response.data);
       return null;
     } on DioException catch (e) {
       return _extractError(e);
     }
+  }
+
+  Future<void> _storeTokens(Map<String, dynamic> data) async {
+    await storage.write(key: 'access_token', value: data['access_token']);
+    await storage.write(key: 'refresh_token', value: data['refresh_token']);
   }
 
   Future<Map<String, dynamic>?> getMe() async {
@@ -51,7 +50,16 @@ class AuthService {
   }
 
   Future<void> logout() async {
+    final refreshToken = await storage.read(key: 'refresh_token');
+    if (refreshToken != null) {
+      try {
+        await api.dio.post('/auth/logout', data: {'refresh_token': refreshToken});
+      } on DioException {
+        // ignore — we're logging out anyway
+      }
+    }
     await storage.delete(key: 'access_token');
+    await storage.delete(key: 'refresh_token');
   }
 
   Future<bool> hasToken() async {
