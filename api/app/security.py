@@ -1,11 +1,7 @@
 from datetime import datetime, timedelta, timezone
-from jose import jwt, JWTError
-from passlib.context import CryptContext
-from app.config import settings
 import bcrypt
-
-# bcrypt password hasher
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+from jose import jwt, JWTError
+from app.config import settings
 
 
 # ── Password functions ────────────────────────────────────────
