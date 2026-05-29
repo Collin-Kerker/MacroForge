@@ -2,6 +2,8 @@ from datetime import datetime, timedelta, timezone
 import bcrypt
 from jose import jwt, JWTError
 from app.config import settings
+import secrets
+from datetime import datetime, timedelta, timezone
 
 
 # ── Password functions ────────────────────────────────────────
@@ -43,3 +45,11 @@ def decode_access_token(token: str) -> str | None:
         return user_id
     except JWTError:
         return None
+
+
+def generate_refresh_token() -> str:
+    return secrets.token_urlsafe(48)
+
+
+def refresh_token_expiry() -> datetime:
+    return datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
