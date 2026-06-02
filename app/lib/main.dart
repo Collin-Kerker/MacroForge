@@ -5,6 +5,8 @@ import 'providers/auth_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/profile_setup_screen.dart';
+import 'providers/profile_provider.dart';
 
 void main() {
   runApp(const ProviderScope(child: MacroForgeApp()));
@@ -16,23 +18,39 @@ class MacroForgeApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isLoggedIn = ref.watch(authProvider);
+    final profile = ref.watch(profileProvider);
 
     final router = GoRouter(
       initialLocation: '/login',
       redirect: (context, state) {
-        final loggingIn = state.matchedLocation == '/login';
-        final registering = state.matchedLocation == '/register';
+        final loc = state.matchedLocation;
+        final onAuthPage = loc == '/login' || loc == '/register';
 
-        // Not logged in and not on an auth page -> go to login
-        if (!isLoggedIn && !loggingIn && !registering) return '/login';
-        // Logged in but on an auth page -> go home
-        if (isLoggedIn && (loggingIn || registering)) return '/';
+        // not logged in -> must be on an auth page
+        if (!isLoggedIn) {
+          return onAuthPage ? null : '/login';
+        }
+
+        // logged in but profile not loaded yet -> let it resolve
+        if (profile == null) return null;
+
+        // logged in, profile incomplete -> force setup
+        if (!profile.profileComplete && loc != '/profile-setup') {
+          return '/profile-setup';
+        }
+
+        // logged in with complete profile but sitting on auth/setup -> home
+        if (profile.profileComplete && (onAuthPage || loc == '/profile-setup')) {
+          return '/';
+        }
+
         return null;
       },
       routes: [
         GoRoute(path: '/', builder: (c, s) => const HomeScreen()),
         GoRoute(path: '/login', builder: (c, s) => const LoginScreen()),
         GoRoute(path: '/register', builder: (c, s) => const RegisterScreen()),
+        GoRoute(path: '/profile-setup', builder: (c, s) => const ProfileSetupScreen()),
       ],
     );
 
