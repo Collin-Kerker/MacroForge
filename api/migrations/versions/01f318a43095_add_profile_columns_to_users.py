@@ -31,7 +31,7 @@ def upgrade() -> None:
     op.add_column('users', sa.Column('target_protein_g', sa.Integer(), nullable=True))
     op.add_column('users', sa.Column('target_carbs_g', sa.Integer(), nullable=True))
     op.add_column('users', sa.Column('target_fat_g', sa.Integer(), nullable=True))
-    op.add_column('users', sa.Column('target_source', sa.String(), nullable=False))
+    op.add_column('users', sa.Column('target_source', sa.String(), nullable=False, server_default='formula'))
     # ### end Alembic commands ###
 
 
