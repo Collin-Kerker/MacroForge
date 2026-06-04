@@ -1,103 +1,170 @@
 """
 MacroForge nutrition calculation module.
 
-Pure functions only — no database, no FastAPI imports. Everything here is
-deterministic math that turns a user's body stats + goal into daily targets.
-This is the cold-start seed; the future Adaptive Targeting Engine (design doc
-Section 21) will later override these using observed weight/intake data.
+Pure functions only — no database, no FastAPI imports. Turns a user's body
+stats + destination goal into daily targets. This is the cold-start seed; the
+future Adaptive Targeting Engine (design doc Section 21) will later override
+these using observed weight/intake data.
 
-All inputs are metric. Conversion from imperial happens in the Flutter layer.
+GOAL MODEL (destination-based):
+  The user states where they want to end up and how fast:
+    - current_weight_kg  (where they are)
+    - goal_weight_kg     (where they want to be)
+    - rate_kg_per_week   (how fast; magnitude, always >= 0)
+  Direction is INFERRED:  goal < current = cut, goal > current = bulk,
+  goal == current = recomp/maintain.
+  The rate converts to a calorie offset via energy balance (~7700 kcal/kg).
+
+  For the recomp case (goal == current), the user also chooses a protein
+  level via a slider (PROTEIN_G_PER_KG range), since calories are at
+  maintenance and protein is the lever that matters.
+
+All inputs are metric. Imperial conversion happens in the Flutter layer.
 """
 
 from datetime import date
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Tunable constants. When advanced diet protocols arrive post-grad, most of
-# the per-protocol variation is swapping these values, not rewriting the math.
+# Tunable constants.
 # ─────────────────────────────────────────────────────────────────────────────
 
 ACTIVITY_MULTIPLIERS = {
-    "sedentary": 1.2,        # little/no exercise
-    "light": 1.375,          # light exercise 1-3 days/week
-    "moderate": 1.55,        # moderate exercise 3-5 days/week
-    "active": 1.725,         # hard exercise 6-7 days/week
-    "very_active": 1.9,      # very hard exercise + physical job
+    "sedentary": 1.2,
+    "light": 1.375,
+    "moderate": 1.55,
+    "active": 1.725,
+    "very_active": 1.9,
 }
 
-# Goal -> calorie adjustment as a multiplier on TDEE.
-GOAL_CALORIE_ADJUSTMENT = {
-    "cut": 0.80,        # -20%
-    "maintain": 1.0,
-    "bulk": 1.10,       # +10%
-}
+# Energy balance: kcal equivalent of 1 kg of bodyweight change.
+KCAL_PER_KG = 7700
 
-# Protein target in grams per kg of bodyweight, per goal.
-# Higher on a cut to preserve lean mass in a deficit.
-PROTEIN_G_PER_KG = {
-    "cut": 2.2,
-    "maintain": 1.8,
-    "bulk": 2.0,
-}
+# Safe rate bounds (kg/week), by direction. Rates outside these get clamped.
+MAX_LOSS_RATE_KG_WK = 1.0
+MIN_LOSS_RATE_KG_WK = 0.25
+MAX_GAIN_RATE_KG_WK = 0.5
+MIN_GAIN_RATE_KG_WK = 0.1
+
+# Default protein (g/kg bodyweight) for directional goals (cut/bulk).
+# Cut runs higher to preserve lean mass in a deficit.
+PROTEIN_G_PER_KG_CUT = 2.2
+PROTEIN_G_PER_KG_BULK = 2.0
+
+# Recomp protein slider range (g/kg). User picks within this; label snaps to band.
+RECOMP_PROTEIN_MIN = 1.8
+RECOMP_PROTEIN_MAX = 3.0
+RECOMP_PROTEIN_DEFAULT = 2.4
 
 # Fat as a fraction of total calories.
 FAT_FRACTION_OF_CALORIES = 0.25
 
-# Calories per gram of each macronutrient.
 KCAL_PER_G_PROTEIN = 4
 KCAL_PER_G_CARB = 4
 KCAL_PER_G_FAT = 9
 
-# Safety floor: carbs can't go below this even if protein+fat eat the budget.
 MIN_CARB_G = 30
+
+# Safety: never set target calories below this absolute floor or below BMR.
+ABSOLUTE_MIN_CALORIES = 1200
 
 
 def calculate_age(birthdate: date, on_date: date | None = None) -> int:
-    """Whole-year age derived from birthdate. Avoids storing a drifting age."""
     today = on_date or date.today()
     age = today.year - birthdate.year
-    # subtract a year if this year's birthday hasn't happened yet
     if (today.month, today.day) < (birthdate.month, birthdate.day):
         age -= 1
     return age
 
 
 def calculate_bmr(sex: str, weight_kg: float, height_cm: float, age: int) -> float:
-    """
-    Basal Metabolic Rate via Mifflin-St Jeor.
-    Male:   10*kg + 6.25*cm - 5*age + 5
-    Female: 10*kg + 6.25*cm - 5*age - 161
-    """
     base = 10 * weight_kg + 6.25 * height_cm - 5 * age
     if sex == "male":
         return base + 5
     elif sex == "female":
         return base - 161
     else:
-        # neutral offset for unspecified: midpoint of the male/female constants
         return base - 78
 
 
 def calculate_tdee(bmr: float, activity_level: str) -> float:
-    """Total Daily Energy Expenditure = BMR * activity multiplier."""
-    multiplier = ACTIVITY_MULTIPLIERS[activity_level]
-    return bmr * multiplier
+    return bmr * ACTIVITY_MULTIPLIERS[activity_level]
 
 
-def calculate_target_calories(tdee: float, goal: str) -> int:
-    """Apply the goal adjustment to TDEE and round to a whole calorie."""
-    return round(tdee * GOAL_CALORIE_ADJUSTMENT[goal])
+def infer_direction(current_weight_kg: float, goal_weight_kg: float) -> str:
+    """cut | bulk | recomp, inferred from the two weights."""
+    if goal_weight_kg < current_weight_kg:
+        return "cut"
+    elif goal_weight_kg > current_weight_kg:
+        return "bulk"
+    else:
+        return "recomp"
 
 
-def calculate_macros(target_calories: int, weight_kg: float, goal: str) -> dict:
+def clamp_rate(rate_kg_per_week: float, direction: str) -> float:
+    """Clamp a (magnitude) rate into the safe band for its direction."""
+    r = abs(rate_kg_per_week)
+    if direction == "cut":
+        return max(MIN_LOSS_RATE_KG_WK, min(MAX_LOSS_RATE_KG_WK, r))
+    elif direction == "bulk":
+        return max(MIN_GAIN_RATE_KG_WK, min(MAX_GAIN_RATE_KG_WK, r))
+    else:  # recomp
+        return 0.0
+
+
+def calculate_target_calories(
+    tdee: float,
+    bmr: float,
+    direction: str,
+    rate_kg_per_week: float,
+) -> tuple[int, bool]:
     """
-    Split calories into macro grams in priority order:
-      1. Protein anchored to bodyweight (g/kg by goal)
-      2. Fat as a fixed fraction of total calories
-      3. Carbs absorb whatever calories remain (with a safety floor)
-    Returns whole-gram values. target_calories remains the source of truth;
-    macro grams are derived and may sum to within a few kcal of it.
+    Apply the rate-derived calorie offset to TDEE.
+    Returns (target_calories, hit_floor) where hit_floor is True if the
+    safety floor had to override the requested rate.
     """
-    protein_g = round(PROTEIN_G_PER_KG[goal] * weight_kg)
+    daily_offset = (rate_kg_per_week * KCAL_PER_KG) / 7  # kcal/day
+
+    if direction == "cut":
+        target = tdee - daily_offset
+    elif direction == "bulk":
+        target = tdee + daily_offset
+    else:  # recomp -> maintenance
+        target = tdee
+
+    floor = max(ABSOLUTE_MIN_CALORIES, bmr)
+    hit_floor = False
+    if target < floor:
+        target = floor
+        hit_floor = True
+
+    return round(target), hit_floor
+
+
+def fastest_safe_rate(tdee: float, bmr: float) -> float:
+    """
+    For a cut, the fastest rate that doesn't breach the calorie floor.
+    Used to tell the user 'the fastest safe rate for you is X'.
+    """
+    floor = max(ABSOLUTE_MIN_CALORIES, bmr)
+    max_daily_deficit = tdee - floor
+    if max_daily_deficit <= 0:
+        return 0.0
+    rate = (max_daily_deficit * 7) / KCAL_PER_KG
+    return min(rate, MAX_LOSS_RATE_KG_WK)
+
+
+def calculate_macros(
+    target_calories: int,
+    weight_kg: float,
+    protein_g_per_kg: float,
+) -> dict:
+    """
+    Split calories into macro grams:
+      1. Protein = protein_g_per_kg * bodyweight
+      2. Fat = fixed fraction of calories
+      3. Carbs absorb the remainder (with a floor)
+    """
+    protein_g = round(protein_g_per_kg * weight_kg)
     fat_g = round((target_calories * FAT_FRACTION_OF_CALORIES) / KCAL_PER_G_FAT)
 
     protein_kcal = protein_g * KCAL_PER_G_PROTEIN
@@ -105,41 +172,67 @@ def calculate_macros(target_calories: int, weight_kg: float, goal: str) -> dict:
     remaining_kcal = target_calories - protein_kcal - fat_kcal
     carbs_g = round(remaining_kcal / KCAL_PER_G_CARB)
 
-    # safety floor on carbs
     if carbs_g < MIN_CARB_G:
         carbs_g = MIN_CARB_G
 
-    return {
-        "protein_g": protein_g,
-        "carbs_g": carbs_g,
-        "fat_g": fat_g,
-    }
+    return {"protein_g": protein_g, "carbs_g": carbs_g, "fat_g": fat_g}
+
+
+def resolve_protein_g_per_kg(
+    direction: str,
+    recomp_protein_g_per_kg: float | None = None,
+) -> float:
+    """
+    Pick the protein g/kg for the goal:
+      - cut/bulk: auto-set from constants
+      - recomp:   use the user's slider value (clamped), default if None
+    """
+    if direction == "cut":
+        return PROTEIN_G_PER_KG_CUT
+    elif direction == "bulk":
+        return PROTEIN_G_PER_KG_BULK
+    else:  # recomp
+        val = recomp_protein_g_per_kg if recomp_protein_g_per_kg is not None else RECOMP_PROTEIN_DEFAULT
+        return max(RECOMP_PROTEIN_MIN, min(RECOMP_PROTEIN_MAX, val))
 
 
 def calculate_targets(
     sex: str,
     birthdate: date,
-    weight_kg: float,
+    current_weight_kg: float,
+    goal_weight_kg: float,
     height_cm: float,
     activity_level: str,
-    goal: str,
+    rate_kg_per_week: float,
+    recomp_protein_g_per_kg: float | None = None,
     on_date: date | None = None,
 ) -> dict:
     """
-    End-to-end: from raw profile inputs to the full target set.
-    This is the single function the endpoint layer calls.
+    End-to-end: raw destination-based inputs -> full target set.
+    The single function the endpoint layer calls.
     """
     age = calculate_age(birthdate, on_date)
-    bmr = calculate_bmr(sex, weight_kg, height_cm, age)
+    bmr = calculate_bmr(sex, current_weight_kg, height_cm, age)
     tdee = calculate_tdee(bmr, activity_level)
-    target_calories = calculate_target_calories(tdee, goal)
-    macros = calculate_macros(target_calories, weight_kg, goal)
+
+    direction = infer_direction(current_weight_kg, goal_weight_kg)
+    clamped_rate = clamp_rate(rate_kg_per_week, direction)
+
+    target_calories, hit_floor = calculate_target_calories(tdee, bmr, direction, clamped_rate)
+
+    protein_g_per_kg = resolve_protein_g_per_kg(direction, recomp_protein_g_per_kg)
+    macros = calculate_macros(target_calories, current_weight_kg, protein_g_per_kg)
 
     return {
         "bmr": round(bmr),
         "tdee": round(tdee),
+        "direction": direction,
+        "clamped_rate_kg_per_week": clamped_rate,
+        "hit_calorie_floor": hit_floor,
+        "fastest_safe_rate_kg_per_week": round(fastest_safe_rate(tdee, bmr), 2),
         "target_calories": target_calories,
         "target_protein_g": macros["protein_g"],
         "target_carbs_g": macros["carbs_g"],
         "target_fat_g": macros["fat_g"],
+        "protein_g_per_kg_used": protein_g_per_kg,
     }
