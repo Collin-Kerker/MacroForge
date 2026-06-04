@@ -16,6 +16,7 @@ class User(Base):
     birthdate = Column(Date, nullable=True)
     height_cm = Column(Numeric(5, 1), nullable=True)
     current_weight_kg = Column(Numeric(5, 2), nullable=True)
+    goal_weight_kg = Column(Numeric(5, 2), nullable=True)
     activity_level = Column(String, nullable=True)
     goal = Column(String, nullable=True)
     goal_rate_kg_per_week = Column(Numeric(4, 2), nullable=True)

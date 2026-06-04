@@ -39,13 +39,29 @@ class TokenData(BaseModel):
 
 
 # ── Profile request (PUT /profile body) ──────────────────────
-class ProfileUpdate(BaseModel):
-    sex: str
-    birthdate: date
-    height_cm: float
-    current_weight_kg: float
-    activity_level: str
-    goal: str
+class ProfileResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    sex: str | None = None
+    birthdate: date | None = None
+    height_cm: float | None = None
+    current_weight_kg: float | None = None
+    goal_weight_kg: float | None = None
+    activity_level: str | None = None
+    goal: str | None = None
+    goal_rate_kg_per_week: float | None = None
+
+    target_calories: int | None = None
+    target_protein_g: int | None = None
+    target_carbs_g: int | None = None
+    target_fat_g: int | None = None
+    target_source: str = "formula"
+
+    # extras the UI can show
+    hit_calorie_floor: bool = False
+    fastest_safe_rate_kg_per_week: float | None = None
+
+    profile_complete: bool = False
 
 
 # ── Profile response (GET /profile) ──────────────────────────
