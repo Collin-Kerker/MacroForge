@@ -19,13 +19,15 @@ class ProfileNotifier extends Notifier<Profile?> {
     state = await service.getProfile();
   }
 
-  Future<String?> save({
+   Future<String?> save({
     required String sex,
     required DateTime birthdate,
     required double heightCm,
     required double weightKg,
+    required double goalWeightKg,
     required String activityLevel,
-    required String goal,
+    required double rateKgPerWeek,
+    double? recompProteinGPerKg,
   }) async {
     final service = ref.read(profileServiceProvider);
     final (profile, error) = await service.updateProfile(
@@ -33,8 +35,10 @@ class ProfileNotifier extends Notifier<Profile?> {
       birthdate: birthdate,
       heightCm: heightCm,
       weightKg: weightKg,
+      goalWeightKg: goalWeightKg,
       activityLevel: activityLevel,
-      goal: goal,
+      rateKgPerWeek: rateKgPerWeek,
+      recompProteinGPerKg: recompProteinGPerKg,
     );
     if (profile != null) state = profile;
     return error;

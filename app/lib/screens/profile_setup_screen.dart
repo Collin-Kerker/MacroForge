@@ -11,33 +11,53 @@ class ProfileSetupScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
-  bool _imperial = true; // US audience defaults to imperial
+  bool _imperial = true;
 
   String _sex = 'male';
   String _activity = 'moderate';
-  String _goal = 'maintain';
   DateTime? _birthdate;
 
   // metric controllers
   final _heightCmCtrl = TextEditingController();
   final _weightKgCtrl = TextEditingController();
+  final _goalWeightKgCtrl = TextEditingController();
   // imperial controllers
   final _heightFtCtrl = TextEditingController();
   final _heightInCtrl = TextEditingController();
   final _weightLbCtrl = TextEditingController();
+  final _goalWeightLbCtrl = TextEditingController();
+
+  // rate slider: stored internally as kg/week magnitude
+  double _rateKgPerWeek = 0.5;
+  // recomp protein slider: stored internally as g/kg
+  double _recompProteinGPerKg = 2.2; // 1.0 g/lb default
 
   bool _loading = false;
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    // recompute "is recomp" when weights change
+    _weightLbCtrl.addListener(_onWeightsChanged);
+    _goalWeightLbCtrl.addListener(_onWeightsChanged);
+    _weightKgCtrl.addListener(_onWeightsChanged);
+    _goalWeightKgCtrl.addListener(_onWeightsChanged);
+  }
+
+  @override
   void dispose() {
     _heightCmCtrl.dispose();
     _weightKgCtrl.dispose();
+    _goalWeightKgCtrl.dispose();
     _heightFtCtrl.dispose();
     _heightInCtrl.dispose();
     _weightLbCtrl.dispose();
+    _goalWeightLbCtrl.dispose();
     super.dispose();
   }
+
+  void _onWeightsChanged() => setState(() {});
 
   // ── conversion helpers ──
   double? _resolveHeightCm() {
@@ -53,15 +73,47 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   double? _resolveWeightKg() {
     if (_imperial) {
       final lb = double.tryParse(_weightLbCtrl.text);
-      if (lb == null) return null;
-      return lb * 0.45359237;
+      return lb == null ? null : lb * 0.45359237;
     }
     return double.tryParse(_weightKgCtrl.text);
+  }
+
+  double? _resolveGoalWeightKg() {
+    if (_imperial) {
+      final lb = double.tryParse(_goalWeightLbCtrl.text);
+      return lb == null ? null : lb * 0.45359237;
+    }
+    return double.tryParse(_goalWeightKgCtrl.text);
+  }
+
+  // is this a recomp case? (current weight == goal weight, both entered)
+  bool get _isRecomp {
+    final cur = _resolveWeightKg();
+    final goal = _resolveGoalWeightKg();
+    if (cur == null || goal == null) return false;
+    return (cur - goal).abs() < 0.05; // within ~50g = "same"
+  }
+
+  String get _direction {
+    final cur = _resolveWeightKg();
+    final goal = _resolveGoalWeightKg();
+    if (cur == null || goal == null) return '';
+    if (_isRecomp) return 'Recomposition';
+    return goal < cur ? 'Losing weight' : 'Gaining weight';
+  }
+
+  // recomp protein band label
+  String _proteinBandLabel(double gPerKg) {
+    if (gPerKg < 2.0) return 'Maintenance (standard protein)';
+    if (gPerKg < 2.4) return 'Low-protein recomp';
+    if (gPerKg < 2.8) return 'High-protein recomp';
+    return 'Maximum-protein recomp';
   }
 
   Future<void> _submit() async {
     final heightCm = _resolveHeightCm();
     final weightKg = _resolveWeightKg();
+    final goalWeightKg = _resolveGoalWeightKg();
 
     if (_birthdate == null) {
       setState(() => _error = 'Please select your birthdate.');
@@ -72,7 +124,11 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
       return;
     }
     if (weightKg == null || weightKg <= 0) {
-      setState(() => _error = 'Please enter a valid weight.');
+      setState(() => _error = 'Please enter a valid current weight.');
+      return;
+    }
+    if (goalWeightKg == null || goalWeightKg <= 0) {
+      setState(() => _error = 'Please enter a valid goal weight.');
       return;
     }
 
@@ -86,8 +142,10 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
           birthdate: _birthdate!,
           heightCm: heightCm,
           weightKg: weightKg,
+          goalWeightKg: goalWeightKg,
           activityLevel: _activity,
-          goal: _goal,
+          rateKgPerWeek: _isRecomp ? 0.0 : _rateKgPerWeek,
+          recompProteinGPerKg: _isRecomp ? _recompProteinGPerKg : null,
         );
 
     if (!mounted) return;
@@ -96,7 +154,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
     if (error != null) {
       setState(() => _error = error);
     } else {
-      context.go('/'); // profile complete -> home
+      context.go('/');
     }
   }
 
@@ -113,6 +171,16 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // rate slider display: convert kg->lb for imperial
+    final rateDisplay = _imperial
+        ? '${(_rateKgPerWeek / 0.45359237).toStringAsFixed(2)} lb/week'
+        : '${_rateKgPerWeek.toStringAsFixed(2)} kg/week';
+
+    // protein slider display: g/kg -> g/lb for imperial
+    final proteinDisplay = _imperial
+        ? '${(_recompProteinGPerKg * 0.45359237).toStringAsFixed(2)} g/lb'
+        : '${_recompProteinGPerKg.toStringAsFixed(2)} g/kg';
+
     return Scaffold(
       appBar: AppBar(title: const Text('Set Up Your Profile')),
       body: Center(
@@ -123,7 +191,6 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // unit toggle
                 SegmentedButton<bool>(
                   segments: const [
                     ButtonSegment(value: true, label: Text('Imperial')),
@@ -134,7 +201,6 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // sex
                 DropdownButtonFormField<String>(
                   initialValue: _sex,
                   decoration: const InputDecoration(labelText: 'Sex', border: OutlineInputBorder()),
@@ -147,7 +213,6 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // birthdate
                 InkWell(
                   onTap: _pickBirthdate,
                   child: InputDecorator(
@@ -184,18 +249,33 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                   ),
                 const SizedBox(height: 16),
 
-                // weight
+                // current weight
                 TextField(
                   controller: _imperial ? _weightLbCtrl : _weightKgCtrl,
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
-                    labelText: _imperial ? 'Weight (lb)' : 'Weight (kg)',
+                    labelText: _imperial ? 'Current Weight (lb)' : 'Current Weight (kg)',
                     border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 16),
 
-                // activity
+                // goal weight
+                TextField(
+                  controller: _imperial ? _goalWeightLbCtrl : _goalWeightKgCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: _imperial ? 'Goal Weight (lb)' : 'Goal Weight (kg)',
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // direction indicator
+                if (_direction.isNotEmpty)
+                  Text(_direction, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+
                 DropdownButtonFormField<String>(
                   initialValue: _activity,
                   decoration: const InputDecoration(labelText: 'Activity Level', border: OutlineInputBorder()),
@@ -208,19 +288,36 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                   ],
                   onChanged: (v) => setState(() => _activity = v!),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
 
-                // goal
-                DropdownButtonFormField<String>(
-                  initialValue: _goal,
-                  decoration: const InputDecoration(labelText: 'Goal', border: OutlineInputBorder()),
-                  items: const [
-                    DropdownMenuItem(value: 'cut', child: Text('Lose weight')),
-                    DropdownMenuItem(value: 'maintain', child: Text('Maintain')),
-                    DropdownMenuItem(value: 'bulk', child: Text('Gain weight')),
-                  ],
-                  onChanged: (v) => setState(() => _goal = v!),
-                ),
+                // RATE slider — hidden for recomp (rate is meaningless at maintenance)
+                if (!_isRecomp) ...[
+                  Text('Target rate: $rateDisplay'),
+                  Slider(
+                    value: _rateKgPerWeek,
+                    min: 0.1,
+                    max: 1.0,
+                    divisions: 18,
+                    label: rateDisplay,
+                    onChanged: (v) => setState(() => _rateKgPerWeek = v),
+                  ),
+                ],
+
+                // RECOMP protein slider — only when current == goal weight
+                if (_isRecomp) ...[
+                  const SizedBox(height: 8),
+                  Text('Protein: $proteinDisplay', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text(_proteinBandLabel(_recompProteinGPerKg),
+                       style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+                  Slider(
+                    value: _recompProteinGPerKg,
+                    min: 1.8,
+                    max: 3.0,
+                    divisions: 24,
+                    label: proteinDisplay,
+                    onChanged: (v) => setState(() => _recompProteinGPerKg = v),
+                  ),
+                ],
 
                 if (_error != null) ...[
                   const SizedBox(height: 16),

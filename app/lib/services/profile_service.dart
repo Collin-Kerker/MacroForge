@@ -22,8 +22,10 @@ class ProfileService {
     required DateTime birthdate,
     required double heightCm,
     required double weightKg,
+    required double goalWeightKg,
     required String activityLevel,
-    required String goal,
+    required double rateKgPerWeek,
+    double? recompProteinGPerKg,
   }) async {
     try {
       final response = await api.dio.put('/profile', data: {
@@ -31,8 +33,10 @@ class ProfileService {
         'birthdate': _formatDate(birthdate),
         'height_cm': heightCm,
         'current_weight_kg': weightKg,
+        'goal_weight_kg': goalWeightKg,
         'activity_level': activityLevel,
-        'goal': goal,
+        'rate_kg_per_week': rateKgPerWeek,
+        'recomp_protein_g_per_kg': recompProteinGPerKg,
       });
       return (Profile.fromJson(response.data), null);
     } on DioException catch (e) {
