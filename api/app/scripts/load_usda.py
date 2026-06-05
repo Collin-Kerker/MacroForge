@@ -31,10 +31,11 @@ DATA_DIRS = [
 
 # csv field size: USDA descriptions can be long
 csv.field_size_limit(min(sys.maxsize, 2**31 - 1))
+KEEP_DATA_TYPES = {"sr_legacy_food", "foundation_food"}
 
 
 def load_food_descriptions(data_dir):
-    """fdc_id -> (description, data_type, food_category_id)"""
+    """fdc_id -> (description, data_type, food_category_id), filtered to real foods."""
     foods = {}
     path = os.path.join(data_dir, "food.csv")
     with open(path, newline="", encoding="utf-8") as f:
@@ -43,10 +44,13 @@ def load_food_descriptions(data_dir):
             fdc_id = row["fdc_id"].strip()
             if not fdc_id:
                 continue
+            data_type = row.get("data_type", "").strip()
+            if data_type not in KEEP_DATA_TYPES:
+                continue  # skip sample_food, sub_sample_food, market_acquisition, etc.
             cat = row.get("food_category_id", "").strip()
             foods[fdc_id] = {
                 "description": row["description"].strip(),
-                "data_type": row.get("data_type", "").strip(),
+                "data_type": data_type,
                 "food_category_id": int(cat) if cat.isdigit() else None,
             }
     return foods
