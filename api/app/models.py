@@ -53,3 +53,22 @@ class FoodItem(Base):
     protein_per_100g = Column(Numeric(8, 2), nullable=True)
     carbs_per_100g = Column(Numeric(8, 2), nullable=True)
     fat_per_100g = Column(Numeric(8, 2), nullable=True)
+
+class FoodLog(Base):
+    __tablename__ = "food_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    food_item_id = Column(Integer, nullable=False)  # USDA fdc_id
+    log_date = Column(Date, nullable=False, index=True)
+    grams = Column(Numeric(7, 1), nullable=False)
+
+    # snapshot of the food at log time (so edits/deletes to food_items
+    # never retroactively change a past log)
+    description = Column(String, nullable=False)
+    kcal = Column(Numeric(8, 1), nullable=False)
+    protein_g = Column(Numeric(7, 1), nullable=False)
+    carbs_g = Column(Numeric(7, 1), nullable=False)
+    fat_g = Column(Numeric(7, 1), nullable=False)
+
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
