@@ -84,3 +84,33 @@ class FoodItemResponse(BaseModel):
     protein_per_100g: float | None = None
     carbs_per_100g: float | None = None
     fat_per_100g: float | None = None
+
+
+# ── Food Log schemas ──────────────────────────
+class FoodLogCreate(BaseModel):
+    food_item_id: int
+    grams: float
+    log_date: date | None = None   # defaults to today if not given
+
+
+class FoodLogResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    food_item_id: int
+    log_date: date
+    grams: float
+    description: str
+    kcal: float
+    protein_g: float
+    carbs_g: float
+    fat_g: float
+
+
+class DayLogResponse(BaseModel):
+    log_date: date
+    entries: list[FoodLogResponse]
+    total_kcal: float
+    total_protein_g: float
+    total_carbs_g: float
+    total_fat_g: float
