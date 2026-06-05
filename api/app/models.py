@@ -39,3 +39,17 @@ class RefreshToken(Base):
     expires_at = Column(DateTime(timezone=True), nullable=False)
     revoked = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+class FoodItem(Base):
+    __tablename__ = "food_items"
+
+    id = Column(Integer, primary_key=True)  # USDA fdc_id
+    description = Column(String, nullable=False, index=True)
+    data_type = Column(String, nullable=True)
+    food_category_id = Column(Integer, nullable=True)
+
+    # macros per 100g (USDA's standard basis)
+    kcal_per_100g = Column(Numeric(8, 2), nullable=True)
+    protein_per_100g = Column(Numeric(8, 2), nullable=True)
+    carbs_per_100g = Column(Numeric(8, 2), nullable=True)
+    fat_per_100g = Column(Numeric(8, 2), nullable=True)
