@@ -29,6 +29,11 @@ class HomeScreen extends ConsumerWidget {
         title: const Text('Today'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.menu_book),
+            tooltip: 'Recipes',
+            onPressed: () => context.push('/recipes'),
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => ref.read(authProvider.notifier).logout(),
           ),

@@ -8,6 +8,8 @@ import 'screens/home_screen.dart';
 import 'screens/profile_setup_screen.dart';
 import 'providers/profile_provider.dart';
 import 'screens/food_search_screen.dart';
+import 'screens/recipe_list_screen.dart';
+import 'screens/recipe_detail_screen.dart';
 
 void main() {
   runApp(const ProviderScope(child: MacroForgeApp()));
@@ -53,6 +55,11 @@ class MacroForgeApp extends ConsumerWidget {
         GoRoute(path: '/register', builder: (c, s) => const RegisterScreen()),
         GoRoute(path: '/profile-setup', builder: (c, s) => const ProfileSetupScreen()),
         GoRoute(path: '/add-food', builder: (c, s) => const FoodSearchScreen()),
+        GoRoute(path: '/recipes', builder: (c, s) => const RecipeListScreen()),
+        GoRoute(
+          path: '/recipes/:id',
+          builder: (c, s) => RecipeDetailScreen(recipeId: s.pathParameters['id']!),
+        ),
       ],
     );
 
