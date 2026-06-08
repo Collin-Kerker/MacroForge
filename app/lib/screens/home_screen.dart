@@ -4,25 +4,10 @@ import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
 import '../providers/food_provider.dart';
+import '../widgets/macro_ring.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
-
-  Widget _macroRow(String label, double consumed, int? target, String unit) {
-    final t = target ?? 0;
-    final remaining = (t - consumed);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
-          Text('${consumed.round()} / $t $unit'
-              '${remaining >= 0 ? '  (${remaining.round()} left)' : '  (${(-remaining).round()} over)'}'),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -59,22 +44,18 @@ class HomeScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // Calories headline
-            Center(
-              child: Column(
-                children: [
-                  Text('${consumedKcal.round()}',
-                      style: const TextStyle(fontSize: 44, fontWeight: FontWeight.bold)),
-                  Text('of ${profile.targetCalories} kcal',
-                      style: const TextStyle(fontSize: 16, color: Colors.grey)),
-                ],
-              ),
+            const SizedBox(height: 8),
+            MacroRing(
+              consumedKcal: consumedKcal,
+              targetKcal: profile.targetCalories ?? 0,
+              consumedProtein: consumedP,
+              targetProtein: profile.targetProteinG ?? 0,
+              consumedCarbs: consumedC,
+              targetCarbs: profile.targetCarbsG ?? 0,
+              consumedFat: consumedF,
+              targetFat: profile.targetFatG ?? 0,
             ),
-            const SizedBox(height: 24),
-            _macroRow('Protein', consumedP, profile.targetProteinG, 'g'),
-            _macroRow('Carbs', consumedC, profile.targetCarbsG, 'g'),
-            _macroRow('Fat', consumedF, profile.targetFatG, 'g'),
-            const Divider(height: 32),
+            const Divider(height: 40),
             Text("Today's Log", style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             if (entries.isEmpty)

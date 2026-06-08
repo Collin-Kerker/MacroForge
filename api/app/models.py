@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Boolean, Date, Numeric, Integer
+from sqlalchemy import Column, String, DateTime, Boolean, Date, Numeric, Integer, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
 
@@ -70,5 +70,27 @@ class FoodLog(Base):
     protein_g = Column(Numeric(7, 1), nullable=False)
     carbs_g = Column(Numeric(7, 1), nullable=False)
     fat_g = Column(Numeric(7, 1), nullable=False)
+
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+class Recipe(Base):
+    __tablename__ = "recipes"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String, nullable=False, index=True)
+    description = Column(String, nullable=True)
+    meal_type = Column(String, nullable=True, index=True)  # breakfast|lunch|dinner|snack
+    servings = Column(Integer, nullable=False, default=1)
+    prep_minutes = Column(Integer, nullable=True)
+
+    # ingredients + steps stored as JSON (structured display text)
+    ingredients = Column(JSON, nullable=False)  # list of {"item": str, "amount": str}
+    steps = Column(JSON, nullable=False)         # list of strings
+
+    # per-serving macros (Option A: carried directly)
+    kcal_per_serving = Column(Integer, nullable=False)
+    protein_g_per_serving = Column(Integer, nullable=False)
+    carbs_g_per_serving = Column(Integer, nullable=False)
+    fat_g_per_serving = Column(Integer, nullable=False)
 
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
