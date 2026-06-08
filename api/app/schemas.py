@@ -1,6 +1,7 @@
 from datetime import datetime, date
 from uuid import UUID
 from pydantic import BaseModel, EmailStr, ConfigDict
+from typing import Any
 
 
 # ── Request schemas (data coming IN) ──────────────────────────
@@ -90,7 +91,7 @@ class FoodItemResponse(BaseModel):
 class FoodLogCreate(BaseModel):
     food_item_id: int
     grams: float
-    log_date: date | None = None   # defaults to today if not given
+    log_date: date | None = None
 
 
 class FoodLogResponse(BaseModel):
@@ -114,3 +115,36 @@ class DayLogResponse(BaseModel):
     total_protein_g: float
     total_carbs_g: float
     total_fat_g: float
+
+
+class RecipeSummary(BaseModel):
+    """Lightweight version for the browse list."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    description: str | None = None
+    meal_type: str | None = None
+    prep_minutes: int | None = None
+    kcal_per_serving: int
+    protein_g_per_serving: int
+    carbs_g_per_serving: int
+    fat_g_per_serving: int
+
+
+class RecipeDetail(BaseModel):
+    """Full version for the recipe detail view."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    description: str | None = None
+    meal_type: str | None = None
+    servings: int
+    prep_minutes: int | None = None
+    ingredients: Any
+    steps: Any
+    kcal_per_serving: int
+    protein_g_per_serving: int
+    carbs_g_per_serving: int
+    fat_g_per_serving: int
