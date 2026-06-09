@@ -148,3 +148,28 @@ class RecipeDetail(BaseModel):
     protein_g_per_serving: int
     carbs_g_per_serving: int
     fat_g_per_serving: int
+
+
+class SolveRequest(BaseModel):
+    include_snack: bool = True
+    exclude_recipe_ids: list[UUID] = []   # for "regenerate" variety
+
+
+class SolvedSlot(BaseModel):
+    slot: str
+    recipe_id: UUID
+    name: str
+    servings: float
+    kcal: int
+    protein: int
+    carbs: int
+    fat: int
+
+
+class SolveResponse(BaseModel):
+    feasible: bool
+    reason: str | None = None
+    slots: list[SolvedSlot] = []
+    totals: dict | None = None
+    targets: dict | None = None
+    deviation: dict | None = None
