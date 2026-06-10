@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, profile, foods, logs, recipes, solve
+from app.routers import auth, profile, foods, logs, recipes, solve, meal_plan
 
 app = FastAPI(title="MacroForge API", version="0.1.0")
 
@@ -18,6 +18,7 @@ app.include_router(foods.router)
 app.include_router(logs.router)
 app.include_router(recipes.router)
 app.include_router(solve.router)
+app.include_router(meal_plan.router)
 
 @app.get("/health")
 def health():

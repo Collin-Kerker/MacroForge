@@ -1,6 +1,6 @@
 from datetime import datetime, date
 from uuid import UUID
-from pydantic import BaseModel, EmailStr, ConfigDict
+from pydantic import BaseModel, EmailStr, ConfigDict, field_validator
 from typing import Any
 
 
@@ -173,3 +173,36 @@ class SolveResponse(BaseModel):
     totals: dict | None = None
     targets: dict | None = None
     deviation: dict | None = None
+
+
+# valid meal-type slots a user can place in a day
+VALID_MEAL_TYPES = {"breakfast", "lunch", "dinner", "snack", "dessert"}
+DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+
+class MealPlanResponse(BaseModel):
+    structure: dict   # {"mon": [...], ...}
+
+
+class MealPlanUpdate(BaseModel):
+    structure: dict
+
+    @field_validator("structure")
+    @classmethod
+    def validate_structure(cls, v):
+        # must have all 7 days, each a list of valid meal types
+        for day in DAYS:
+            if day not in v:
+                raise ValueError(f"Missing day: {day}")
+            if not isinstance(v[day], list):
+                raise ValueError(f"{day} must be a list of meal types")
+            for slot in v[day]:
+                if slot not in VALID_MEAL_TYPES:
+                    raise ValueError(f"Invalid meal type '{slot}' in {day}")
+            if len(v[day]) > 8:
+                raise ValueError(f"{day} has too many slots (max 8)")
+        # reject unexpected keys
+        for key in v:
+            if key not in DAYS:
+                raise ValueError(f"Unexpected day key: {key}")
+        return v
