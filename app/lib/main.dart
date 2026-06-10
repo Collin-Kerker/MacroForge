@@ -11,6 +11,7 @@ import 'screens/food_search_screen.dart';
 import 'screens/recipe_list_screen.dart';
 import 'screens/recipe_detail_screen.dart';
 import 'screens/generate_day_screen.dart';
+import 'screens/meal_planner_screen.dart';
 
 void main() {
   runApp(const ProviderScope(child: MacroForgeApp()));
@@ -62,6 +63,7 @@ class MacroForgeApp extends ConsumerWidget {
           builder: (c, s) => RecipeDetailScreen(recipeId: s.pathParameters['id']!),
         ),
         GoRoute(path: '/generate', builder: (c, s) => const GenerateDayScreen()),
+        GoRoute(path: '/planner', builder: (c, s) => const MealPlannerScreen()),
       ],
     );
 

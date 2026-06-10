@@ -40,11 +40,17 @@ def solve(
         for r in recipes_db
     ]
 
-    structure = ["breakfast", "lunch", "dinner"]
-    optional = set()
-    if payload.include_snack:
-        structure.append("snack")
-        optional = {"snack"}
+    # If the caller supplies an explicit structure (e.g. from the weekly
+    # planner), use it. Otherwise fall back to the default + snack toggle.
+    if payload.meal_structure:
+        structure = payload.meal_structure
+        optional = {s for s in structure if s in ("snack", "dessert")}
+    else:
+        structure = ["breakfast", "lunch", "dinner"]
+        optional = set()
+        if payload.include_snack:
+            structure.append("snack")
+            optional = {"snack"}
 
     result = solve_day(
         target_kcal=current_user.target_calories,

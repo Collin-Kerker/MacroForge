@@ -175,6 +175,12 @@ class SolveResponse(BaseModel):
     deviation: dict | None = None
 
 
+class SolveRequest(BaseModel):
+    include_snack: bool = True
+    exclude_recipe_ids: list[UUID] = []
+    meal_structure: list[str] | None = None   # if set, overrides the default structure
+
+
 # valid meal-type slots a user can place in a day
 VALID_MEAL_TYPES = {"breakfast", "lunch", "dinner", "snack", "dessert"}
 DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
