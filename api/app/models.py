@@ -94,3 +94,14 @@ class Recipe(Base):
     fat_g_per_serving = Column(Integer, nullable=False)
 
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+class MealPlan(Base):
+    __tablename__ = "meal_plans"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), nullable=False, unique=True, index=True)
+
+    # { "mon": ["breakfast","lunch","dinner"], "tue": [...], ... }
+    structure = Column(JSON, nullable=False)
+
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
