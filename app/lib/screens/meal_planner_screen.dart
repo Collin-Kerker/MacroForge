@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/meal_plan.dart';
 import '../providers/meal_plan_provider.dart';
+import '../providers/solve_provider.dart';
 
 class MealPlannerScreen extends ConsumerStatefulWidget {
   const MealPlannerScreen({super.key});
@@ -63,6 +64,76 @@ class _MealPlannerScreenState extends ConsumerState<MealPlannerScreen> {
         );
       }
     });
+  }
+
+  Future<void> _generateDay(String day) async {
+    final structure = _working!.structure[day]!;
+    if (structure.isEmpty) return;
+
+    // loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    final result = await ref.read(solveServiceProvider).solve(
+          mealStructure: structure,
+        );
+
+    if (!mounted) return;
+    Navigator.pop(context); // dismiss loader
+
+    if (result == null || !result.feasible) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result?.reason ?? 'Could not generate this day.')),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.7,
+        builder: (_, controller) => ListView(
+          controller: controller,
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text('${kDayLabels[day]} — Generated',
+                style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 12),
+            ...result.slots.map((s) => Card(
+                  child: ListTile(
+                    title: Text(s.name),
+                    subtitle: Text('${s.slot[0].toUpperCase()}${s.slot.substring(1)}'
+                        '  •  ${s.servings}x  •  ${s.kcal} kcal  •  '
+                        'P ${s.protein} / C ${s.carbs} / F ${s.fat}'),
+                  ),
+                )),
+            const SizedBox(height: 12),
+            Card(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Day Totals', style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 8),
+                    Text('Calories: ${result.totals?['kcal']} / ${result.targets?['kcal']}'),
+                    Text('Protein: ${result.totals?['protein']}g / ${result.targets?['protein']}g'),
+                    Text('Carbs: ${result.totals?['carbs']}g / ${result.targets?['carbs']}g'),
+                    Text('Fat: ${result.totals?['fat']}g / ${result.targets?['fat']}g'),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -134,6 +205,7 @@ class _MealPlannerScreenState extends ConsumerState<MealPlannerScreen> {
                       colorFor: _colorFor,
                       onAccept: (type) => _addSlot(day, type),
                       onRemove: (index) => _removeSlot(day, index),
+                      onGenerate: () => _generateDay(day),
                     );
                   },
                 ),
@@ -171,6 +243,7 @@ class _DayBox extends StatelessWidget {
   final Color Function(String) colorFor;
   final void Function(String type) onAccept;
   final void Function(int index) onRemove;
+  final VoidCallback onGenerate;
 
   const _DayBox({
     required this.label,
@@ -178,6 +251,7 @@ class _DayBox extends StatelessWidget {
     required this.colorFor,
     required this.onAccept,
     required this.onRemove,
+    required this.onGenerate,
   });
 
   @override
@@ -204,7 +278,18 @@ class _DayBox extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  if (slots.isNotEmpty)
+                    TextButton.icon(
+                      onPressed: onGenerate,
+                      icon: const Icon(Icons.auto_awesome, size: 18),
+                      label: const Text('Generate'),
+                    ),
+                ],
+              ),
               const SizedBox(height: 8),
               if (slots.isEmpty)
                 Padding(
