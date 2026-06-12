@@ -105,3 +105,18 @@ class MealPlan(Base):
     structure = Column(JSON, nullable=False)
 
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class GeneratedPlan(Base):
+    __tablename__ = "generated_plans"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), nullable=False, unique=True, index=True)
+
+    # The full solved week as a JSON blob:
+    # { "days": {"mon": {...solved day...}, ...}, "week_totals": {...} }
+    # Macros are snapshotted at generation time (like food_logs), so the saved
+    # plan stays stable even if a recipe's macros change later.
+    week = Column(JSON, nullable=False)
+
+    generated_at = Column(DateTime(timezone=True), default=datetime.utcnow,
+                          onupdate=datetime.utcnow)

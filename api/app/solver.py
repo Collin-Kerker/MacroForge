@@ -169,3 +169,97 @@ def solve_day(
             "fat": tot["fat"] - target_fat,
         },
     }
+
+
+# Day keys in display/solve order. Matches schemas.DAYS.
+WEEK_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+# Slot types that may be left empty if no recipe exists / isn't needed to hit
+# targets. (dessert has no recipes yet, so it's skippable rather than fatal.)
+OPTIONAL_SLOT_TYPES = {"snack", "dessert"}
+
+
+def _empty_day(target_kcal, target_protein, target_carbs, target_fat):
+    """A day with no slots — feasible, zero macros."""
+    return {
+        "feasible": True,
+        "empty": True,
+        "slots": [],
+        "totals": {"kcal": 0, "protein": 0, "carbs": 0, "fat": 0},
+        "targets": {"kcal": target_kcal, "protein": target_protein,
+                    "carbs": target_carbs, "fat": target_fat},
+        "deviation": {"kcal": -target_kcal, "protein": -target_protein,
+                      "carbs": -target_carbs, "fat": -target_fat},
+    }
+
+
+def solve_week(target_kcal, target_protein, target_carbs, target_fat,
+               structure, recipes):
+    """
+    Solve all seven days against a structure dict {"mon": [...slots...], ...}.
+
+    Cross-day variety: each day excludes the recipes used on the previous TWO
+    days. With a small recipe pool (7-8 per meal type) and a deterministic
+    optimizer, a 1-day look-back makes the solver ping-pong between its two
+    best days; a 2-day look-back forces a ~3-day rotation and uses more of the
+    library. As the recipe library grows, variety widens automatically.
+
+    Feasibility ladder per day: try excluding the last 2 days; if infeasible,
+    fall back to excluding just the last day; if still infeasible, solve with
+    no exclusions. A valid day always wins over strict variety.
+
+    Empty days (no slots) are returned as feasible zero-macro days and reset
+    the variety streak.
+
+    Returns:
+      {
+        "days": {"mon": <solve_day result>, ...},   # one entry per WEEK_DAYS
+        "week_totals": {"kcal","protein","carbs","fat"},  # sum of feasible days
+      }
+    """
+    days_out = {}
+    recent = []  # list of recipe-id sets, oldest..newest; look back over last 2
+
+    for day in WEEK_DAYS:
+        slots = structure.get(day, [])
+
+        if not slots:
+            days_out[day] = _empty_day(target_kcal, target_protein,
+                                       target_carbs, target_fat)
+            recent = []  # an empty day breaks the streak
+            continue
+
+        optional = {s for s in slots if s in OPTIONAL_SLOT_TYPES}
+        exclude2 = set().union(*recent[-2:]) if recent else set()
+
+        result = solve_day(
+            target_kcal, target_protein, target_carbs, target_fat,
+            slots, recipes, optional_slots=optional, exclude_recipe_ids=exclude2,
+        )
+
+        # Relax to 1-day look-back if 2-day made the day infeasible.
+        if not result["feasible"] and recent:
+            result = solve_day(
+                target_kcal, target_protein, target_carbs, target_fat,
+                slots, recipes, optional_slots=optional,
+                exclude_recipe_ids=recent[-1],
+            )
+
+        # Last resort: no exclusions at all.
+        if not result["feasible"]:
+            result = solve_day(
+                target_kcal, target_protein, target_carbs, target_fat,
+                slots, recipes, optional_slots=optional,
+            )
+
+        days_out[day] = result
+        recent.append({s["recipe_id"] for s in result.get("slots", [])}
+                      if result["feasible"] else set())
+
+    week_totals = {"kcal": 0, "protein": 0, "carbs": 0, "fat": 0}
+    for d in days_out.values():
+        if d.get("feasible") and d.get("totals"):
+            for k in week_totals:
+                week_totals[k] += d["totals"][k]
+
+    return {"days": days_out, "week_totals": week_totals}
