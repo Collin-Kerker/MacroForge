@@ -29,6 +29,11 @@ class HomeScreen extends ConsumerWidget {
         title: const Text('Today'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.view_week),
+            tooltip: 'My generated week',
+            onPressed: () => context.push('/week'),
+          ),
+          IconButton(
             icon: const Icon(Icons.calendar_month),
             tooltip: 'My week',
             onPressed: () => context.push('/planner'),

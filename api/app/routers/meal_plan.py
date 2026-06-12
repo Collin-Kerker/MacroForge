@@ -90,6 +90,17 @@ def generate_week(
         for r in recipes_db
     ]
 
+
+    prior = db.execute(
+        select(GeneratedPlan).where(GeneratedPlan.user_id == current_user.id)
+    ).scalar_one_or_none()
+    exclude_ids = set()
+    if prior is not None:
+        for day in prior.week.get("days", {}).values():
+            for slot in day.get("slots", []):
+                if slot.get("recipe_id"):
+                    exclude_ids.add(slot["recipe_id"])
+
     week = solve_week(
         target_kcal=current_user.target_calories,
         target_protein=current_user.target_protein_g,
@@ -97,7 +108,9 @@ def generate_week(
         target_fat=current_user.target_fat_g,
         structure=plan.structure,
         recipes=recipes,
+        exclude_recipe_ids=exclude_ids,
     )
+
 
     # Persist (overwrite any prior generated plan for this user).
     gen = db.execute(

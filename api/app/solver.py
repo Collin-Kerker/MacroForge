@@ -194,7 +194,7 @@ def _empty_day(target_kcal, target_protein, target_carbs, target_fat):
 
 
 def solve_week(target_kcal, target_protein, target_carbs, target_fat,
-               structure, recipes):
+               structure, recipes, exclude_recipe_ids=None):
     """
     Solve all seven days against a structure dict {"mon": [...slots...], ...}.
 
@@ -218,7 +218,8 @@ def solve_week(target_kcal, target_protein, target_carbs, target_fat,
       }
     """
     days_out = {}
-    recent = []  # list of recipe-id sets, oldest..newest; look back over last 2
+    seed = set(exclude_recipe_ids) if exclude_recipe_ids else set()
+    recent = [seed, seed] if seed else []
 
     for day in WEEK_DAYS:
         slots = structure.get(day, [])
