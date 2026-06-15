@@ -192,34 +192,29 @@ def _empty_day(target_kcal, target_protein, target_carbs, target_fat):
                       "carbs": -target_carbs, "fat": -target_fat},
     }
 
-
+s
 def solve_week(target_kcal, target_protein, target_carbs, target_fat,
                structure, recipes, exclude_recipe_ids=None):
     """
     Solve all seven days against a structure dict {"mon": [...slots...], ...}.
 
-    Cross-day variety: each day excludes the recipes used on the previous TWO
-    days. With a small recipe pool (7-8 per meal type) and a deterministic
-    optimizer, a 1-day look-back makes the solver ping-pong between its two
-    best days; a 2-day look-back forces a ~3-day rotation and uses more of the
-    library. As the recipe library grows, variety widens automatically.
+    Two exclusion mechanisms:
+      - seed (exclude_recipe_ids): a WEEK-LONG exclusion applied to every day,
+        used on "regenerate" to push the whole new week off the prior one.
+        Persists all week (does not slide out of the look-back window).
+      - rolling 2-day look-back: intra-week variety, so consecutive days differ.
 
-    Feasibility ladder per day: try excluding the last 2 days; if infeasible,
-    fall back to excluding just the last day; if still infeasible, solve with
-    no exclusions. A valid day always wins over strict variety.
+    Per-day feasibility ladder (honors the seed as long as the day can solve):
+      seed + last-2-days  ->  seed + last-1-day  ->  seed only  ->  no exclusions.
+    A valid day always wins; only a too-thin pool forces a day back onto prior
+    recipes. Empty days return feasible zero-macro and reset only the rolling
+    look-back (the seed persists across them).
 
-    Empty days (no slots) are returned as feasible zero-macro days and reset
-    the variety streak.
-
-    Returns:
-      {
-        "days": {"mon": <solve_day result>, ...},   # one entry per WEEK_DAYS
-        "week_totals": {"kcal","protein","carbs","fat"},  # sum of feasible days
-      }
+    Returns {"days": {"mon": <solve_day result>, ...}, "week_totals": {...}}.
     """
     days_out = {}
     seed = set(exclude_recipe_ids) if exclude_recipe_ids else set()
-    recent = [seed, seed] if seed else []
+    recent = []  # rolling intra-week look-back, oldest..newest
 
     for day in WEEK_DAYS:
         slots = structure.get(day, [])
@@ -227,31 +222,30 @@ def solve_week(target_kcal, target_protein, target_carbs, target_fat,
         if not slots:
             days_out[day] = _empty_day(target_kcal, target_protein,
                                        target_carbs, target_fat)
-            recent = []  # an empty day breaks the streak
+            recent = []  # reset rolling look-back; seed persists
             continue
 
         optional = {s for s in slots if s in OPTIONAL_SLOT_TYPES}
-        exclude2 = set().union(*recent[-2:]) if recent else set()
+        lookback2 = set().union(*recent[-2:]) if recent else set()
+        lookback1 = recent[-1] if recent else set()
 
-        result = solve_day(
-            target_kcal, target_protein, target_carbs, target_fat,
-            slots, recipes, optional_slots=optional, exclude_recipe_ids=exclude2,
-        )
+        # Ladder of exclusion sets, most-strict first. seed is in every rung
+        # except the last so the prior week is avoided wherever the pool allows.
+        ladder = [seed | lookback2, seed | lookback1, seed, set()]
 
-        # Relax to 1-day look-back if 2-day made the day infeasible.
-        if not result["feasible"] and recent:
+        result = None
+        seen = set()
+        for excl in ladder:
+            key = frozenset(excl)
+            if key in seen:           # skip identical rungs (no point re-solving)
+                continue
+            seen.add(key)
             result = solve_day(
                 target_kcal, target_protein, target_carbs, target_fat,
-                slots, recipes, optional_slots=optional,
-                exclude_recipe_ids=recent[-1],
+                slots, recipes, optional_slots=optional, exclude_recipe_ids=excl,
             )
-
-        # Last resort: no exclusions at all.
-        if not result["feasible"]:
-            result = solve_day(
-                target_kcal, target_protein, target_carbs, target_fat,
-                slots, recipes, optional_slots=optional,
-            )
+            if result["feasible"]:
+                break
 
         days_out[day] = result
         recent.append({s["recipe_id"] for s in result.get("slots", [])}
