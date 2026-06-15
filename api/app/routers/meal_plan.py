@@ -9,6 +9,7 @@ from app.schemas import (
     MealPlanResponse, MealPlanUpdate, GeneratedPlanResponse, DAYS,
 )
 from app.solver import solve_week
+from app.grocery import build_grocery_list
 
 router = APIRouter(prefix="/meal-plan", tags=["meal-plan"])
 
@@ -138,3 +139,45 @@ def get_generated_week(
     if gen is None:
         raise HTTPException(404, "No generated week yet. Generate one first.")
     return GeneratedPlanResponse(week=gen.week, generated_at=gen.generated_at)
+
+
+@router.get("/grocery-list")
+def get_grocery_list(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # Need a generated week to shop for.
+    gen = db.execute(
+        select(GeneratedPlan).where(GeneratedPlan.user_id == current_user.id)
+    ).scalar_one_or_none()
+    if gen is None:
+        raise HTTPException(404, "Generate a week first to build a grocery list.")
+
+    # The saved week stores recipe IDs per slot, not ingredients. Pull every
+    # recipe used in the week, then look up its ingredients.
+    recipe_ids = set()
+    for day in gen.week.get("days", {}).values():
+        for slot in day.get("slots", []):
+            if slot.get("recipe_id"):
+                recipe_ids.add(slot["recipe_id"])
+
+    if not recipe_ids:
+        return {"sections": []}
+
+    recipes = db.execute(
+        select(Recipe).where(Recipe.id.in_(recipe_ids))
+    ).scalars().all()
+    ingredients_by_recipe = {str(r.id): r.ingredients for r in recipes}
+
+    # Build the (item, amount, servings) list across the whole week, scaling
+    # each recipe's ingredients by the servings the solver chose for that slot.
+    items = []
+    for day in gen.week.get("days", {}).values():
+        for slot in day.get("slots", []):
+            rid = slot.get("recipe_id")
+            servings = slot.get("servings", 1.0)
+            for ing in ingredients_by_recipe.get(rid, []):
+                items.append((ing["item"], ing["amount"], servings))
+
+    sections = build_grocery_list(items)
+    return {"sections": sections}
