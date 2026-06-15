@@ -188,10 +188,12 @@ def build_grocery_list(items):
             summable[bkey]["base_total"] += base
         elif qty is not None and unit is None:
             # bare count or "<n> <descriptor>" -> sum the number, keep one descriptor
-            descriptor = raw
-            # strip leading number for the descriptor label
-            dm = re.match(rf"\s*{_NUM}\s*(.*)", raw)
-            desc_word = dm.group(2).strip() if dm and dm.group(2).strip() else ""
+            # Strip the ENTIRE leading number token (incl. fractions/mixed) so
+            # "1/2 medium" yields descriptor "medium", not "/2 medium".
+            desc_word = re.sub(
+                r"^\s*(?:\d+\s+\d+\s*/\s*\d+|\d+\s*/\s*\d+|\d+(?:\.\d+)?)\s*",
+                "", raw,
+            ).strip()
             bkey = (key, "count:" + desc_word.lower())
             if bkey not in countable:
                 countable[bkey] = {"name": name.strip(), "total": 0.0, "descriptor": desc_word}
