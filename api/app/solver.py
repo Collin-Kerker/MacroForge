@@ -192,7 +192,7 @@ def _empty_day(target_kcal, target_protein, target_carbs, target_fat):
                       "carbs": -target_carbs, "fat": -target_fat},
     }
 
-s
+
 def solve_week(target_kcal, target_protein, target_carbs, target_fat,
                structure, recipes, exclude_recipe_ids=None):
     """
