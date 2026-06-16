@@ -29,6 +29,8 @@ def _build_response(user: User) -> ProfileResponse:
         target_carbs_g=user.target_carbs_g,
         target_fat_g=user.target_fat_g,
         target_source=user.target_source or "formula",
+        prep_cadence=user.prep_cadence,
+        prep_day=user.prep_day,
         profile_complete=complete,
     )
 
