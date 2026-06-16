@@ -49,6 +49,8 @@ class ProfileUpdate(BaseModel):
     activity_level: str
     rate_kg_per_week: float = 0.0
     recomp_protein_g_per_kg: float | None = None
+    prep_cadence: str = "batch"
+    prep_day: int = 6
 
 
 # ── Profile response (GET /profile) ──────────────────────────
@@ -74,6 +76,9 @@ class ProfileResponse(BaseModel):
     fastest_safe_rate_kg_per_week: float | None = None
 
     profile_complete: bool = False
+
+    prep_cadence: str | None = None
+    prep_day: int | None = None
 
 
 class FoodItemResponse(BaseModel):

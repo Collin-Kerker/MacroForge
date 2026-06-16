@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Boolean, Date, Numeric, Integer, JSON
+from sqlalchemy import Column, String, DateTime, Boolean, Date, Numeric, Integer, SmallInteger, UUID, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
 
@@ -29,6 +29,9 @@ class User(Base):
 
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    prep_cadence = Column(String, nullable=False, server_default="batch")
+    prep_day = Column(SmallInteger, nullable=False, server_default="6")
 
 class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
