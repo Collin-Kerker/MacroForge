@@ -69,6 +69,9 @@ def update_profile(
     current_user.current_weight_kg = payload.current_weight_kg
     current_user.goal_weight_kg = payload.goal_weight_kg
     current_user.activity_level = payload.activity_level
+    current_user.activity_level = payload.activity_level
+    current_user.prep_cadence = payload.prep_cadence
+    current_user.prep_day = payload.prep_day
     current_user.goal = result["direction"]  # inferred cut/bulk/recomp
     # store the signed rate: negative for cut, positive for bulk, 0 recomp
     signed_rate = result["clamped_rate_kg_per_week"]
