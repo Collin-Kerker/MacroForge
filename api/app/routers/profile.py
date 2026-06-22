@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import User
-from app.schemas import ProfileUpdate, ProfileResponse
+from app.schemas import ProfileUpdate, ProfileResponse, PrepUpdate
 from app.routers.auth import get_current_user
 from app.nutrition import calculate_targets
 
@@ -95,3 +95,20 @@ def update_profile(
     response.hit_calorie_floor = result["hit_calorie_floor"]
     response.fastest_safe_rate_kg_per_week = result["fastest_safe_rate_kg_per_week"]
     return response
+
+
+@router.patch("/prep", response_model=ProfileResponse)
+def update_prep(
+    payload: PrepUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if payload.prep_cadence not in ("batch", "rolling"):
+        raise HTTPException(400, "prep_cadence must be 'batch' or 'rolling'")
+    if not (0 <= payload.prep_day <= 6):
+        raise HTTPException(400, "prep_day must be 0 (Mon) through 6 (Sun)")
+    current_user.prep_cadence = payload.prep_cadence
+    current_user.prep_day = payload.prep_day
+    db.commit()
+    db.refresh(current_user)
+    return _build_response(current_user)

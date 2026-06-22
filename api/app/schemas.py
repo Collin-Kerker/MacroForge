@@ -53,6 +53,11 @@ class ProfileUpdate(BaseModel):
     prep_day: int = 6
 
 
+class PrepUpdate(BaseModel):
+    prep_cadence: str
+    prep_day: int
+
+
 # ── Profile response (GET /profile) ──────────────────────────
 class ProfileResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
