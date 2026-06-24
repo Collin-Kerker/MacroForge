@@ -26,6 +26,8 @@ class ProfileService {
     required String activityLevel,
     required double rateKgPerWeek,
     double? recompProteinGPerKg,
+    required String prepCadence,
+    required int prepDay,
   }) async {
     try {
       final response = await api.dio.put('/profile', data: {
@@ -37,11 +39,30 @@ class ProfileService {
         'activity_level': activityLevel,
         'rate_kg_per_week': rateKgPerWeek,
         'recomp_protein_g_per_kg': recompProteinGPerKg,
+        'prep_cadence': prepCadence,
+        'prep_day': prepDay,
       });
       return (Profile.fromJson(response.data), null);
     } on DioException catch (e) {
       final detail = e.response?.data is Map ? e.response?.data['detail'] : null;
       return (null, detail?.toString() ?? 'Could not save profile. Try again.');
+    }
+  }
+
+  // Prep-only update. Does NOT recompute macros server-side (uses PATCH /profile/prep).
+  Future<(Profile?, String?)> updatePrep({
+    required String prepCadence,
+    required int prepDay,
+  }) async {
+    try {
+      final response = await api.dio.patch('/profile/prep', data: {
+        'prep_cadence': prepCadence,
+        'prep_day': prepDay,
+      });
+      return (Profile.fromJson(response.data), null);
+    } on DioException catch (e) {
+      final detail = e.response?.data is Map ? e.response?.data['detail'] : null;
+      return (null, detail?.toString() ?? 'Could not update prep. Try again.');
     }
   }
 

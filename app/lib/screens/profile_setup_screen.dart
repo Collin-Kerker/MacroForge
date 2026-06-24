@@ -17,6 +17,10 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   String _activity = 'moderate';
   DateTime? _birthdate;
 
+  // prep preferences
+  String _prepCadence = 'batch';
+  int _prepDay = 6;
+
   // metric controllers
   final _heightCmCtrl = TextEditingController();
   final _weightKgCtrl = TextEditingController();
@@ -146,6 +150,8 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
           activityLevel: _activity,
           rateKgPerWeek: _isRecomp ? 0.0 : _rateKgPerWeek,
           recompProteinGPerKg: _isRecomp ? _recompProteinGPerKg : null,
+          prepCadence: _prepCadence,
+          prepDay: _prepDay,
         );
 
     if (!mounted) return;
@@ -316,6 +322,47 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                     divisions: 24,
                     label: proteinDisplay,
                     onChanged: (v) => setState(() => _recompProteinGPerKg = v),
+                  ),
+                ],
+
+                // ── Meal prep ──
+                const SizedBox(height: 24),
+                Text('Meal Prep', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'batch', label: Text('Batch prep')),
+                    ButtonSegment(value: 'rolling', label: Text('Day by day')),
+                  ],
+                  selected: {_prepCadence},
+                  onSelectionChanged: (s) => setState(() => _prepCadence = s.first),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _prepCadence == 'batch'
+                      ? 'Prep the whole week in one session on your chosen day.'
+                      : 'Prep and cook each day as you go.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (_prepCadence == 'batch') ...[
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<int>(
+                    initialValue: _prepDay,
+                    decoration: const InputDecoration(
+                        labelText: 'Prep day', border: OutlineInputBorder()),
+                    items: const [
+                      DropdownMenuItem(value: 0, child: Text('Monday')),
+                      DropdownMenuItem(value: 1, child: Text('Tuesday')),
+                      DropdownMenuItem(value: 2, child: Text('Wednesday')),
+                      DropdownMenuItem(value: 3, child: Text('Thursday')),
+                      DropdownMenuItem(value: 4, child: Text('Friday')),
+                      DropdownMenuItem(value: 5, child: Text('Saturday')),
+                      DropdownMenuItem(value: 6, child: Text('Sunday')),
+                    ],
+                    onChanged: (v) => setState(() => _prepDay = v ?? 6),
                   ),
                 ],
 

@@ -19,7 +19,7 @@ class ProfileNotifier extends Notifier<Profile?> {
     state = await service.getProfile();
   }
 
-   Future<String?> save({
+  Future<String?> save({
     required String sex,
     required DateTime birthdate,
     required double heightCm,
@@ -28,6 +28,8 @@ class ProfileNotifier extends Notifier<Profile?> {
     required String activityLevel,
     required double rateKgPerWeek,
     double? recompProteinGPerKg,
+    required String prepCadence,
+    required int prepDay,
   }) async {
     final service = ref.read(profileServiceProvider);
     final (profile, error) = await service.updateProfile(
@@ -39,6 +41,22 @@ class ProfileNotifier extends Notifier<Profile?> {
       activityLevel: activityLevel,
       rateKgPerWeek: rateKgPerWeek,
       recompProteinGPerKg: recompProteinGPerKg,
+      prepCadence: prepCadence,
+      prepDay: prepDay,
+    );
+    if (profile != null) state = profile;
+    return error;
+  }
+
+  // Prep-only update via PATCH /profile/prep. Macros are untouched.
+  Future<String?> updatePrep({
+    required String prepCadence,
+    required int prepDay,
+  }) async {
+    final service = ref.read(profileServiceProvider);
+    final (profile, error) = await service.updatePrep(
+      prepCadence: prepCadence,
+      prepDay: prepDay,
     );
     if (profile != null) state = profile;
     return error;

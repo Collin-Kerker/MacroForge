@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/generated_plan.dart';
 import '../models/meal_plan.dart'; // for kDayOrder / kDayLabels
+import '../models/profile.dart';
 import '../providers/generated_plan_provider.dart';
+import '../providers/profile_provider.dart';
 
 class WeekViewScreen extends ConsumerStatefulWidget {
   const WeekViewScreen({super.key});
@@ -29,6 +31,66 @@ class _WeekViewScreenState extends ConsumerState<WeekViewScreen> {
     }
     // Force the view to re-fetch the now-saved week.
     ref.invalidate(generatedPlanProvider);
+  }
+
+  Future<void> _editPrep(Profile profile) async {
+    String cadence = profile.prepCadence;
+    int day = profile.prepDay;
+    const dayNames = [
+      'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
+    ];
+
+    await showModalBottomSheet(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Meal prep', style: Theme.of(ctx).textTheme.titleMedium),
+              const SizedBox(height: 12),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'batch', label: Text('Batch')),
+                  ButtonSegment(value: 'rolling', label: Text('Day by day')),
+                ],
+                selected: {cadence},
+                onSelectionChanged: (s) => setSheet(() => cadence = s.first),
+              ),
+              if (cadence == 'batch') ...[
+                const SizedBox(height: 16),
+                DropdownButtonFormField<int>(
+                  initialValue: day,
+                  decoration: const InputDecoration(
+                      labelText: 'Prep day', border: OutlineInputBorder()),
+                  items: [
+                    for (int i = 0; i < 7; i++)
+                      DropdownMenuItem(value: i, child: Text(dayNames[i])),
+                  ],
+                  onChanged: (v) => setSheet(() => day = v ?? 6),
+                ),
+              ],
+              const SizedBox(height: 20),
+              FilledButton(
+                onPressed: () async {
+                  final err = await ref
+                      .read(profileProvider.notifier)
+                      .updatePrep(prepCadence: cadence, prepDay: day);
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  if (err != null && mounted) {
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(SnackBar(content: Text(err)));
+                  }
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -84,6 +146,24 @@ class _WeekViewScreenState extends ConsumerState<WeekViewScreen> {
           return ListView(
             padding: const EdgeInsets.all(12),
             children: [
+              // Prep-status row — reads profile, opens the quick-change sheet.
+              Builder(
+                builder: (context) {
+                  final profile = ref.watch(profileProvider);
+                  if (profile == null) return const SizedBox.shrink();
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: ListTile(
+                      leading: const Icon(Icons.event_note),
+                      title: Text(profile.prepCadence == 'batch'
+                          ? 'Batch prep on ${const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][profile.prepDay]}'
+                          : 'Prepping day by day'),
+                      trailing: const Icon(Icons.edit, size: 18),
+                      onTap: () => _editPrep(profile),
+                    ),
+                  );
+                },
+              ),
               for (final day in kDayOrder)
                 if (plan.days.containsKey(day))
                   _DayCard(

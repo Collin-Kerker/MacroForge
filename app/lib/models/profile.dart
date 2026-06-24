@@ -12,6 +12,8 @@ class Profile {
   final int? targetFatG;
   final String targetSource;
   final bool profileComplete;
+  final String prepCadence;
+  final int prepDay;
 
   Profile({
     this.sex,
@@ -27,6 +29,8 @@ class Profile {
     this.targetFatG,
     this.targetSource = 'formula',
     this.profileComplete = false,
+    this.prepCadence = 'batch',
+    this.prepDay = 6,
   });
 
   factory Profile.fromJson(Map<String, dynamic> json) {
@@ -46,6 +50,8 @@ class Profile {
       targetFatG: json['target_fat_g'],
       targetSource: json['target_source'] ?? 'formula',
       profileComplete: json['profile_complete'] ?? false,
+      prepCadence: json['prep_cadence'] ?? 'batch',
+      prepDay: json['prep_day'] ?? 6,
     );
   }
 }
