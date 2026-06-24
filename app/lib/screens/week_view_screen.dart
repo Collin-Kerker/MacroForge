@@ -5,6 +5,7 @@ import '../models/meal_plan.dart'; // for kDayOrder / kDayLabels
 import '../models/profile.dart';
 import '../providers/generated_plan_provider.dart';
 import '../providers/profile_provider.dart';
+import 'package:go_router/go_router.dart';
 
 class WeekViewScreen extends ConsumerStatefulWidget {
   const WeekViewScreen({super.key});
@@ -158,7 +159,21 @@ class _WeekViewScreenState extends ConsumerState<WeekViewScreen> {
                       title: Text(profile.prepCadence == 'batch'
                           ? 'Batch prep on ${const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][profile.prepDay]}'
                           : 'Prepping day by day'),
-                      trailing: const Icon(Icons.edit, size: 18),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.checklist),
+                            tooltip: 'View prep plan',
+                            onPressed: () => context.push('/prep'),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.edit, size: 18),
+                            tooltip: 'Change prep',
+                            onPressed: () => _editPrep(profile),
+                          ),
+                        ],
+                      ),
                       onTap: () => _editPrep(profile),
                     ),
                   );

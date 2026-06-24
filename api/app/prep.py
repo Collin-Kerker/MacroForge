@@ -115,19 +115,43 @@ def build_batch_prep(week_days):
     return groups
 
 def build_rolling_prep(week_days, day_order):
-    """Per-day cook list: each day's meals as-is, in week order."""
+    """Per-day cook list. Same-recipe meals within a day are collapsed into
+    one line with summed servings + a count, so a day that the solver filled
+    with the same recipe 3x reads as 'Recipe x3' instead of three lines."""
     out = []
     for dayname in day_order:
         day = week_days.get(dayname)
         if not day:
             continue
-        slots = day.get("slots", [])
+        # group this day's slots by recipe_id, summing servings and counting
+        grouped = {}
+        order = []
+        for s in day.get("slots", []):
+            rid = s.get("recipe_id")
+            if not rid:
+                continue
+            if rid not in grouped:
+                grouped[rid] = {
+                    "recipe_id": rid,
+                    "name": s.get("name", "Recipe"),
+                    "servings": 0.0,
+                    "count": 0,
+                    "slot": s.get("slot", ""),
+                }
+                order.append(rid)
+            grouped[rid]["servings"] += s.get("servings", 1.0) or 1.0
+            grouped[rid]["count"] += 1
         out.append({
             "day": dayname,
             "meals": [
-                {"recipe_id": s.get("recipe_id"), "name": s.get("name", "Recipe"),
-                 "servings": s.get("servings", 1.0), "slot": s.get("slot", "")}
-                for s in slots
+                {
+                    "recipe_id": grouped[r]["recipe_id"],
+                    "name": grouped[r]["name"],
+                    "servings": round(grouped[r]["servings"], 2),
+                    "count": grouped[r]["count"],
+                    "slot": grouped[r]["slot"],
+                }
+                for r in order
             ],
         })
     return out
