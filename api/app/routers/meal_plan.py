@@ -10,6 +10,7 @@ from app.schemas import (
 )
 from app.solver import solve_week
 from app.grocery import build_grocery_list
+from app.prep import build_batch_prep, build_rolling_prep
 
 router = APIRouter(prefix="/meal-plan", tags=["meal-plan"])
 
@@ -181,3 +182,33 @@ def get_grocery_list(
 
     sections = build_grocery_list(items)
     return {"sections": sections}
+
+
+WEEK_ORDER = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+
+@router.get("/prep-plan")
+def get_prep_plan(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    gen = db.execute(
+        select(GeneratedPlan).where(GeneratedPlan.user_id == current_user.id)
+    ).scalar_one_or_none()
+    if gen is None:
+        raise HTTPException(404, "Generate a week first to build a prep plan.")
+
+    days = gen.week.get("days", {})
+    cadence = current_user.prep_cadence or "batch"
+
+    if cadence == "batch":
+        return {
+            "cadence": "batch",
+            "prep_day": current_user.prep_day,
+            "groups": build_batch_prep(days),
+        }
+    else:
+        return {
+            "cadence": "rolling",
+            "days": build_rolling_prep(days, WEEK_ORDER),
+        }
