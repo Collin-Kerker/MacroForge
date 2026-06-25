@@ -26,6 +26,7 @@ WEIGHT_PROTEIN = 4.0
 WEIGHT_KCAL = 1.0
 WEIGHT_CARBS = 0.5
 WEIGHT_FAT = 0.5
+WEIGHT_WITHIN_DAY_REPEAT = 3.0
 
 
 def solve_day(
@@ -113,13 +114,30 @@ def solve_day(
     prob += total_carbs - target_carbs == o_c - u_c
     prob += total_fat - target_fat == o_f - u_f
 
+    # ── Within-day repeat penalty ──
+    # For each recipe that can appear in 2+ slots, count extra uses and penalize.
+    repeat_terms = []
+    slots_for_recipe = {}
+    for (si, rid, s) in x:
+        slots_for_recipe.setdefault(rid, set()).add(si)
+    for rid, slotset in slots_for_recipe.items():
+        if len(slotset) < 2:
+            continue  # can only appear in one slot -> can't repeat
+        uses = pulp.lpSum(
+            x[(si, rid, s)] for si in slotset for s in SERVING_SIZES if (si, rid, s) in x
+        )
+        extra = pulp.LpVariable(f"extra_{rid}", lowBound=0)
+        prob += extra >= uses - 1
+        repeat_terms.append(extra)
+
     # Objective: minimize weighted absolute deviation.
     # Protein under-shoot penalized extra (don't want to under-deliver protein).
     prob += (
         WEIGHT_KCAL * (o_k + u_k)
-        + WEIGHT_PROTEIN * (o_p + 1.5 * u_p)   # under-protein hurts more than over
+        + WEIGHT_PROTEIN * (o_p + 1.5 * u_p)
         + WEIGHT_CARBS * (o_c + u_c)
         + WEIGHT_FAT * (o_f + u_f)
+        + WEIGHT_WITHIN_DAY_REPEAT * pulp.lpSum(repeat_terms)
     )
 
     prob.solve(pulp.PULP_CBC_CMD(msg=0))
