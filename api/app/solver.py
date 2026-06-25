@@ -140,7 +140,7 @@ def solve_day(
         + WEIGHT_WITHIN_DAY_REPEAT * pulp.lpSum(repeat_terms)
     )
 
-    prob.solve(pulp.PULP_CBC_CMD(msg=0))
+    prob.solve(pulp.PULP_CBC_CMD(msg=0, timeLimit=1))
 
     if pulp.LpStatus[prob.status] != "Optimal":
         return {"feasible": False, "reason": pulp.LpStatus[prob.status]}
