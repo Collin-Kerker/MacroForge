@@ -280,12 +280,12 @@ def solve_week(target_kcal, target_protein, target_carbs, target_fat,
 
 def _neighbor_exclusions(week_days, day):
     """Recipe IDs used by the day's immediate neighbors (prev + next)."""
-    idx = DAYS.index(day)
+    idx = WEEK_DAYS.index(day)
     neighbors = []
     if idx > 0:
-        neighbors.append(DAYS[idx - 1])
-    if idx < len(DAYS) - 1:
-        neighbors.append(DAYS[idx + 1])
+        neighbors.append(WEEK_DAYS[idx - 1])
+    if idx < len(WEEK_DAYS) - 1:
+        neighbors.append(WEEK_DAYS[idx + 1])
     excl = set()
     for nb in neighbors:
         nbday = week_days.get(nb)

@@ -8,7 +8,7 @@ from app.models import MealPlan, GeneratedPlan, Recipe, User
 from app.schemas import (
     MealPlanResponse, MealPlanUpdate, GeneratedPlanResponse, DayRegenRequest, DAYS,
 )
-from app.solver import solve_week, solve_one_day, recompute_week_totals, DAYS
+from app.solver import solve_week, solve_one_day, recompute_week_totals
 from app.grocery import build_grocery_list
 from app.prep import build_batch_prep, build_rolling_prep
 
