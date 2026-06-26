@@ -6,9 +6,9 @@ from app.routers.auth import get_current_user
 from fastapi import APIRouter, Depends, HTTPException
 from app.models import MealPlan, GeneratedPlan, Recipe, User
 from app.schemas import (
-    MealPlanResponse, MealPlanUpdate, GeneratedPlanResponse, DAYS,
+    MealPlanResponse, MealPlanUpdate, GeneratedPlanResponse, DayRegenRequest, DAYS,
 )
-from app.solver import solve_week
+from app.solver import solve_week, solve_one_day, recompute_week_totals, DAYS
 from app.grocery import build_grocery_list
 from app.prep import build_batch_prep, build_rolling_prep
 
@@ -212,3 +212,63 @@ def get_prep_plan(
             "cadence": "rolling",
             "days": build_rolling_prep(days, WEEK_ORDER),
         }
+
+
+@router.patch("/day/{day}", response_model=GeneratedPlanResponse)
+def regenerate_day(
+    day: str,
+    payload: DayRegenRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if day not in DAYS:
+        raise HTTPException(400, f"day must be one of {DAYS}")
+    if current_user.target_calories is None:
+        raise HTTPException(400, "Complete your profile first.")
+
+    gen = db.execute(
+        select(GeneratedPlan).where(GeneratedPlan.user_id == current_user.id)
+    ).scalar_one_or_none()
+    if gen is None:
+        raise HTTPException(404, "Generate a week first.")
+
+    plan = db.execute(
+        select(MealPlan).where(MealPlan.user_id == current_user.id)
+    ).scalar_one_or_none()
+    if plan is None:
+        plan = MealPlan(user_id=current_user.id, structure=_default_structure())
+        db.add(plan)
+        db.commit()
+        db.refresh(plan)
+
+    if payload.structure is not None:
+        new_structure = dict(plan.structure)
+        new_structure[day] = payload.structure
+        plan.structure = new_structure
+        db.commit()
+        db.refresh(plan)
+
+    slots = plan.structure.get(day, [])
+
+    recipes_db = db.execute(select(Recipe)).scalars().all()
+    recipes = [
+        {"id": str(r.id), "name": r.name, "meal_type": r.meal_type,
+         "kcal": r.kcal_per_serving, "protein": r.protein_g_per_serving,
+         "carbs": r.carbs_g_per_serving, "fat": r.fat_g_per_serving}
+        for r in recipes_db
+    ]
+
+    week = dict(gen.week)
+    days = dict(week.get("days", {}))
+    days[day] = solve_one_day(
+        current_user.target_calories, current_user.target_protein_g,
+        current_user.target_carbs_g, current_user.target_fat_g,
+        slots, recipes, days, day,
+    )
+    week["days"] = days
+    week["week_totals"] = recompute_week_totals(days)
+
+    gen.week = week
+    db.commit()
+    db.refresh(gen)
+    return GeneratedPlanResponse(week=gen.week, generated_at=gen.generated_at)

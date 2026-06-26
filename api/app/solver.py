@@ -276,3 +276,49 @@ def solve_week(target_kcal, target_protein, target_carbs, target_fat,
                 week_totals[k] += d["totals"][k]
 
     return {"days": days_out, "week_totals": week_totals}
+
+
+def _neighbor_exclusions(week_days, day):
+    """Recipe IDs used by the day's immediate neighbors (prev + next)."""
+    idx = DAYS.index(day)
+    neighbors = []
+    if idx > 0:
+        neighbors.append(DAYS[idx - 1])
+    if idx < len(DAYS) - 1:
+        neighbors.append(DAYS[idx + 1])
+    excl = set()
+    for nb in neighbors:
+        nbday = week_days.get(nb)
+        if nbday and nbday.get("feasible"):
+            excl.update(s["recipe_id"] for s in nbday.get("slots", []))
+    return excl
+
+
+def solve_one_day(target_kcal, target_protein, target_carbs, target_fat,
+                  slots, recipes, week_days, day):
+    """Re-solve one day, excluding neighbors' recipes; fall back if infeasible."""
+    if not slots:
+        return {"feasible": True, "slots": [], "empty": True,
+                "totals": {"kcal": 0, "protein": 0, "carbs": 0, "fat": 0},
+                "targets": {"kcal": target_kcal, "protein": target_protein,
+                            "carbs": target_carbs, "fat": target_fat},
+                "deviation": {"kcal": -target_kcal, "protein": -target_protein,
+                              "carbs": -target_carbs, "fat": -target_fat}}
+    optional = {s for s in slots if s in OPTIONAL_SLOT_TYPES}
+    excl = _neighbor_exclusions(week_days, day)
+    result = solve_day(target_kcal, target_protein, target_carbs, target_fat,
+                       slots, recipes, optional_slots=optional,
+                       exclude_recipe_ids=excl)
+    if not result["feasible"]:
+        result = solve_day(target_kcal, target_protein, target_carbs, target_fat,
+                           slots, recipes, optional_slots=optional)
+    return result
+
+
+def recompute_week_totals(week_days):
+    wt = {"kcal": 0, "protein": 0, "carbs": 0, "fat": 0}
+    for d in week_days.values():
+        if d.get("feasible") and d.get("totals"):
+            for k in wt:
+                wt[k] += d["totals"][k]
+    return wt

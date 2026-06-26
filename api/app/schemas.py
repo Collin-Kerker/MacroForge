@@ -227,3 +227,7 @@ class MealPlanUpdate(BaseModel):
 class GeneratedPlanResponse(BaseModel):
     week: dict                 # {"days": {...}, "week_totals": {...}}
     generated_at: datetime | None = None
+
+
+class DayRegenRequest(BaseModel):
+    structure: list[str] | None = None
