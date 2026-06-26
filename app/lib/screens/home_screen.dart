@@ -44,11 +44,6 @@ class HomeScreen extends ConsumerWidget {
             onPressed: () => context.push('/planner'),
           ),
           IconButton(
-            icon: const Icon(Icons.auto_awesome),
-            tooltip: 'Generate a day',
-            onPressed: () => context.push('/generate'),
-          ),
-          IconButton(
             icon: const Icon(Icons.menu_book),
             tooltip: 'Recipes',
             onPressed: () => context.push('/recipes'),
