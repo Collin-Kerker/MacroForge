@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../models/generated_plan.dart';
 import '../models/meal_plan.dart'; // for kDayOrder / kDayLabels
 import '../models/profile.dart';
 import '../providers/generated_plan_provider.dart';
 import '../providers/profile_provider.dart';
-import 'package:go_router/go_router.dart';
 
 class WeekViewScreen extends ConsumerStatefulWidget {
   const WeekViewScreen({super.key});
@@ -16,6 +16,7 @@ class WeekViewScreen extends ConsumerStatefulWidget {
 
 class _WeekViewScreenState extends ConsumerState<WeekViewScreen> {
   bool _generating = false;
+  final Set<String> _rerolling = {}; // day keys currently re-rolling
 
   Future<void> _generate() async {
     setState(() => _generating = true);
@@ -30,8 +31,29 @@ class _WeekViewScreenState extends ConsumerState<WeekViewScreen> {
       );
       return;
     }
-    // Force the view to re-fetch the now-saved week.
     ref.invalidate(generatedPlanProvider);
+  }
+
+  Future<void> _rerollDay(String dayKey) async {
+    setState(() => _rerolling.add(dayKey));
+    final result =
+        await ref.read(generatedPlanServiceProvider).regenerateDay(dayKey);
+    if (!mounted) return;
+    setState(() => _rerolling.remove(dayKey));
+    if (result == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not re-roll that day.')),
+      );
+      return;
+    }
+    ref.invalidate(generatedPlanProvider);
+  }
+
+  Future<void> _editDay(String dayKey) async {
+    // Open the planner focused on this one day; it saves + re-solves just
+    // this day via the per-day endpoint. Refresh the week when we return.
+    await context.push('/planner?day=$dayKey');
+    if (mounted) ref.invalidate(generatedPlanProvider);
   }
 
   Future<void> _editPrep(Profile profile) async {
@@ -102,6 +124,16 @@ class _WeekViewScreenState extends ConsumerState<WeekViewScreen> {
       appBar: AppBar(
         title: const Text('My Week'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.shopping_cart_outlined),
+            tooltip: 'Grocery list',
+            onPressed: () => context.push('/grocery'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.edit_calendar),
+            tooltip: 'Edit week structure',
+            onPressed: () => _editWholeWeek(),
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: TextButton.icon(
@@ -147,7 +179,7 @@ class _WeekViewScreenState extends ConsumerState<WeekViewScreen> {
           return ListView(
             padding: const EdgeInsets.all(12),
             children: [
-              // Prep-status row — reads profile, opens the quick-change sheet.
+              // Prep-status row.
               Builder(
                 builder: (context) {
                   final profile = ref.watch(profileProvider);
@@ -182,8 +214,12 @@ class _WeekViewScreenState extends ConsumerState<WeekViewScreen> {
               for (final day in kDayOrder)
                 if (plan.days.containsKey(day))
                   _DayCard(
+                    dayKey: day,
                     label: kDayLabels[day]!,
                     day: plan.days[day]!,
+                    rerolling: _rerolling.contains(day),
+                    onReroll: () => _rerollDay(day),
+                    onEdit: () => _editDay(day),
                   ),
               const SizedBox(height: 8),
               _WeekTotalsCard(totals: plan.weekTotals),
@@ -194,12 +230,29 @@ class _WeekViewScreenState extends ConsumerState<WeekViewScreen> {
       ),
     );
   }
+
+  Future<void> _editWholeWeek() async {
+    await context.push('/planner');
+    if (mounted) ref.invalidate(generatedPlanProvider);
+  }
 }
 
 class _DayCard extends StatelessWidget {
+  final String dayKey;
   final String label;
   final GeneratedDay day;
-  const _DayCard({required this.label, required this.day});
+  final bool rerolling;
+  final VoidCallback onReroll;
+  final VoidCallback onEdit;
+
+  const _DayCard({
+    required this.dayKey,
+    required this.label,
+    required this.day,
+    required this.rerolling,
+    required this.onReroll,
+    required this.onEdit,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -212,9 +265,48 @@ class _DayCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
-            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(label,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 17)),
+                ),
+                if (rerolling)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 8),
+                    child: SizedBox(
+                        width: 16, height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2)),
+                  ),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert, size: 20),
+                  onSelected: (v) {
+                    if (v == 'reroll') onReroll();
+                    if (v == 'edit') onEdit();
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: 'reroll',
+                      child: ListTile(
+                        leading: Icon(Icons.casino_outlined),
+                        title: Text('Re-roll recipes'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: ListTile(
+                        leading: Icon(Icons.edit_calendar_outlined),
+                        title: Text('Edit this day'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
 
             if (day.empty || day.slots.isEmpty)
               Padding(

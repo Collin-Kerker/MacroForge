@@ -7,7 +7,17 @@ class GeneratedPlanService {
   final dynamic api;
   GeneratedPlanService(this.api);
 
-  // Fetch the saved week. Returns null if none exists yet (404).
+  // Full-week generate (POST /meal-plan/generate).
+  Future<GeneratedPlan?> generate() async {
+    try {
+      final res = await api.dio.post('/meal-plan/generate');
+      return GeneratedPlan.fromJson(res.data);
+    } on DioException {
+      return null;
+    }
+  }
+
+  // Fetch the saved generated week (GET /meal-plan/generated).
   Future<GeneratedPlan?> get() async {
     try {
       final res = await api.dio.get('/meal-plan/generated');
@@ -17,10 +27,16 @@ class GeneratedPlanService {
     }
   }
 
-  // Solve + persist a fresh week, returns it.
-  Future<GeneratedPlan?> generate() async {
+  // Re-solve a SINGLE day (PATCH /meal-plan/day/{day}). If [structure] is
+  // given, that day's slot shape is changed too; otherwise just re-rolls
+  // recipes. Only that day is rewritten server-side; neighbors are excluded
+  // for variety, the other days are untouched.
+  Future<GeneratedPlan?> regenerateDay(String day, {List<String>? structure}) async {
     try {
-      final res = await api.dio.post('/meal-plan/generate');
+      final res = await api.dio.patch(
+        '/meal-plan/day/$day',
+        data: structure != null ? {'structure': structure} : {},
+      );
       return GeneratedPlan.fromJson(res.data);
     } on DioException {
       return null;
@@ -32,7 +48,6 @@ final generatedPlanServiceProvider = Provider<GeneratedPlanService>((ref) {
   return GeneratedPlanService(ref.watch(apiClientProvider));
 });
 
-// Loads the saved week (null if never generated).
 final generatedPlanProvider = FutureProvider<GeneratedPlan?>((ref) async {
   return ref.watch(generatedPlanServiceProvider).get();
 });

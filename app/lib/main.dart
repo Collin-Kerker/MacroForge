@@ -66,7 +66,10 @@ class MacroForgeApp extends ConsumerWidget {
           builder: (c, s) => RecipeDetailScreen(recipeId: s.pathParameters['id']!),
         ),
         GoRoute(path: '/generate', builder: (c, s) => const GenerateDayScreen()),
-        GoRoute(path: '/planner', builder: (c, s) => const MealPlannerScreen()),
+        GoRoute(
+          path: '/planner',
+          builder: (c, s) => MealPlannerScreen(focusDay: s.uri.queryParameters['day']),
+        ),
         GoRoute(path: '/week', builder: (c, s) => const WeekViewScreen()),
         GoRoute(path: '/grocery', builder: (c, s) => const GroceryListScreen()),
         GoRoute(path: '/prep', builder: (c, s) => const PrepPlanScreen()),

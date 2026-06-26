@@ -296,7 +296,9 @@ def _neighbor_exclusions(week_days, day):
 
 def solve_one_day(target_kcal, target_protein, target_carbs, target_fat,
                   slots, recipes, week_days, day):
-    """Re-solve one day, excluding neighbors' recipes; fall back if infeasible."""
+    """Re-solve one day, excluding neighbors' recipes AND this day's current
+    recipes (so a re-roll actually produces something different), with a
+    fallback ladder if the pool is too thin."""
     if not slots:
         return {"feasible": True, "slots": [], "empty": True,
                 "totals": {"kcal": 0, "protein": 0, "carbs": 0, "fat": 0},
@@ -304,14 +306,24 @@ def solve_one_day(target_kcal, target_protein, target_carbs, target_fat,
                             "carbs": target_carbs, "fat": target_fat},
                 "deviation": {"kcal": -target_kcal, "protein": -target_protein,
                               "carbs": -target_carbs, "fat": -target_fat}}
+
     optional = {s for s in slots if s in OPTIONAL_SLOT_TYPES}
-    excl = _neighbor_exclusions(week_days, day)
-    result = solve_day(target_kcal, target_protein, target_carbs, target_fat,
-                       slots, recipes, optional_slots=optional,
-                       exclude_recipe_ids=excl)
-    if not result["feasible"]:
+    neighbor_excl = _neighbor_exclusions(week_days, day)
+
+    # This day's current recipes — exclude them so the re-roll changes things.
+    current = set()
+    cur_day = week_days.get(day)
+    if cur_day and cur_day.get("feasible"):
+        current = {s["recipe_id"] for s in cur_day.get("slots", [])}
+
+    # Ladder: exclude neighbors + current  ->  just current  ->  neighbors  ->  none.
+    # Falls back gracefully if the pool is too thin to honor every exclusion.
+    for excl in [neighbor_excl | current, current, neighbor_excl, set()]:
         result = solve_day(target_kcal, target_protein, target_carbs, target_fat,
-                           slots, recipes, optional_slots=optional)
+                           slots, recipes, optional_slots=optional,
+                           exclude_recipe_ids=excl)
+        if result["feasible"]:
+            return result
     return result
 
 
