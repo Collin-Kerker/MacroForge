@@ -6,11 +6,11 @@ from app.routers.auth import get_current_user
 from fastapi import APIRouter, Depends, HTTPException
 from app.models import MealPlan, GeneratedPlan, Recipe, User
 from app.schemas import (
-    MealPlanResponse, MealPlanUpdate, GeneratedPlanResponse, DayRegenRequest, DAYS,
+    MealPlanResponse, MealPlanUpdate, GeneratedPlanResponse, DayRegenRequest, DAYS, SlotLockRequest
 )
-from app.solver import solve_week, solve_one_day, recompute_week_totals
+from app.solver import solve_week, solve_one_day, recompute_week_totals, solve_one_day_with_locks
 from app.grocery import build_grocery_list
-from app.prep import build_batch_prep, build_rolling_prep
+from app.prep import build_batch_prep, build_rolling_prep          # add to existing schema import
 
 router = APIRouter(prefix="/meal-plan", tags=["meal-plan"])
 
@@ -260,14 +260,65 @@ def regenerate_day(
 
     week = dict(gen.week)
     days = dict(week.get("days", {}))
-    days[day] = solve_one_day(
-        current_user.target_calories, current_user.target_protein_g,
-        current_user.target_carbs_g, current_user.target_fat_g,
-        slots, recipes, days, day,
-    )
+    # days[day] = solve_one_day(
+    #     current_user.target_calories, current_user.target_protein_g,
+    #     current_user.target_carbs_g, current_user.target_fat_g,
+    #     slots, recipes, days, day,
+    # )
+
+    current_day = days.get(day) or {}
+    locked_slots = [s for s in current_day.get("slots", []) if s.get("locked")]
+
+    if locked_slots:
+        days[day] = solve_one_day_with_locks(
+            current_user.target_calories, current_user.target_protein_g,
+            current_user.target_carbs_g, current_user.target_fat_g,
+            slots, recipes, locked_slots, days, day,
+        )
+    else:
+        days[day] = solve_one_day(
+            current_user.target_calories, current_user.target_protein_g,
+            current_user.target_carbs_g, current_user.target_fat_g,
+            slots, recipes, days, day,
+        )
+
     week["days"] = days
     week["week_totals"] = recompute_week_totals(days)
 
+    gen.week = week
+    db.commit()
+    db.refresh(gen)
+    return GeneratedPlanResponse(week=gen.week, generated_at=gen.generated_at)
+
+
+@router.patch("/day/{day}/lock")
+def toggle_slot_lock(
+    day: str,
+    payload: SlotLockRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if day not in DAYS:
+        raise HTTPException(400, f"day must be one of {DAYS}")
+    gen = db.execute(
+        select(GeneratedPlan).where(GeneratedPlan.user_id == current_user.id)
+    ).scalar_one_or_none()
+    if gen is None:
+        raise HTTPException(404, "Generate a week first.")
+    week = dict(gen.week)
+    days = dict(week.get("days", {}))
+    d = days.get(day)
+    if not d:
+        raise HTTPException(404, f"No {day} in the current week.")
+    new_slots = []
+    for s in d.get("slots", []):
+        s2 = dict(s)
+        if s2.get("slot_index") == payload.slot_index:
+            s2["locked"] = payload.locked
+        new_slots.append(s2)
+    d = dict(d); d["slots"] = new_slots
+    days[day] = d
+    week["days"] = days
     gen.week = week
     db.commit()
     db.refresh(gen)

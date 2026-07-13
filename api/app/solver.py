@@ -334,3 +334,66 @@ def recompute_week_totals(week_days):
             for k in wt:
                 wt[k] += d["totals"][k]
     return wt
+
+
+def solve_one_day_with_locks(target_kcal, target_protein, target_carbs, target_fat,
+                             slots, recipes, locked_slots, week_days, day):
+    locked_by_index = {s["slot_index"]: s for s in locked_slots}
+
+    rem = {"kcal": target_kcal, "protein": target_protein,
+           "carbs": target_carbs, "fat": target_fat}
+    for s in locked_slots:
+        for k in rem:
+            rem[k] -= s.get(k, 0)
+    rem = {k: max(0, v) for k, v in rem.items()}
+
+    unlocked_positions = [(i, st) for i, st in enumerate(slots) if i not in locked_by_index]
+    unlocked_structure = [st for (_, st) in unlocked_positions]
+
+    solved_unlocked = []
+    if unlocked_structure:
+        neighbor = _neighbor_exclusions(week_days, day)
+        cur = week_days.get(day)
+        current_unlocked = set()
+        if cur and cur.get("feasible"):
+            for sl in cur.get("slots", []):
+                if sl["slot_index"] not in locked_by_index:
+                    current_unlocked.add(sl["recipe_id"])
+        locked_ids = {s["recipe_id"] for s in locked_slots}
+        optional = {st for st in unlocked_structure if st in OPTIONAL_SLOT_TYPES}
+
+        sub = None
+        for excl in [neighbor | current_unlocked | locked_ids,
+                     current_unlocked | locked_ids, locked_ids, set()]:
+            sub = solve_day(rem["kcal"], rem["protein"], rem["carbs"], rem["fat"],
+                            unlocked_structure, recipes,
+                            optional_slots=optional, exclude_recipe_ids=excl)
+            if sub["feasible"]:
+                break
+        if sub["feasible"]:
+            solved_unlocked = sub["slots"]
+
+    remapped = []
+    for (orig_i, st), solved in zip(unlocked_positions, solved_unlocked):
+        s2 = dict(solved)
+        s2["slot_index"] = orig_i
+        s2["slot"] = st
+        s2["locked"] = False
+        remapped.append(s2)
+
+    final = []
+    for s in locked_slots:
+        s2 = dict(s)
+        s2["locked"] = True
+        final.append(s2)
+    final += remapped
+    final.sort(key=lambda c: c["slot_index"])
+
+    tot = {"kcal": 0, "protein": 0, "carbs": 0, "fat": 0}
+    for s in final:
+        for k in tot:
+            tot[k] += s.get(k, 0)
+    base = {"kcal": target_kcal, "protein": target_protein,
+            "carbs": target_carbs, "fat": target_fat}
+    return {"feasible": True, "slots": final, "totals": tot, "targets": base,
+            "deviation": {k: tot[k] - base[k] for k in tot}}

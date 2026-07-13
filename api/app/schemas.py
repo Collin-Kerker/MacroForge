@@ -231,3 +231,8 @@ class GeneratedPlanResponse(BaseModel):
 
 class DayRegenRequest(BaseModel):
     structure: list[str] | None = None
+
+
+class SlotLockRequest(BaseModel):
+    slot_index: int
+    locked: bool
