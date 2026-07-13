@@ -6,6 +6,7 @@ import '../models/meal_plan.dart'; // for kDayOrder / kDayLabels
 import '../models/profile.dart';
 import '../providers/generated_plan_provider.dart';
 import '../providers/profile_provider.dart';
+import '../models/solved_day.dart';
 
 class WeekViewScreen extends ConsumerStatefulWidget {
   const WeekViewScreen({super.key});
@@ -43,6 +44,20 @@ class _WeekViewScreenState extends ConsumerState<WeekViewScreen> {
     if (result == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not re-roll that day.')),
+      );
+      return;
+    }
+    ref.invalidate(generatedPlanProvider);
+  }
+
+  Future<void> _toggleLock(String dayKey, SolvedSlot slot) async {
+    final result = await ref
+        .read(generatedPlanServiceProvider)
+        .toggleSlotLock(dayKey, slot.slotIndex, !slot.locked);
+    if (!mounted) return;
+    if (result == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not change lock.')),
       );
       return;
     }
@@ -220,6 +235,7 @@ class _WeekViewScreenState extends ConsumerState<WeekViewScreen> {
                     rerolling: _rerolling.contains(day),
                     onReroll: () => _rerollDay(day),
                     onEdit: () => _editDay(day),
+                    onToggleLock: (slot) => _toggleLock(day, slot),
                   ),
               const SizedBox(height: 8),
               _WeekTotalsCard(totals: plan.weekTotals),
@@ -244,6 +260,7 @@ class _DayCard extends StatelessWidget {
   final bool rerolling;
   final VoidCallback onReroll;
   final VoidCallback onEdit;
+  final void Function(SolvedSlot slot) onToggleLock;
 
   const _DayCard({
     required this.dayKey,
@@ -252,6 +269,7 @@ class _DayCard extends StatelessWidget {
     required this.rerolling,
     required this.onReroll,
     required this.onEdit,
+    required this.onToggleLock,
   });
 
   @override
@@ -315,11 +333,31 @@ class _DayCard extends StatelessWidget {
                     style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13)),
               )
             else ...[
-              ...day.slots.map((s) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
+              ...day.slots.map((s) => Container(
+                    margin: const EdgeInsets.symmetric(vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    decoration: s.locked
+                        ? BoxDecoration(
+                            color: scheme.primaryContainer.withValues(alpha: 0.4),
+                            borderRadius: BorderRadius.circular(8),
+                          )
+                        : null,
                     child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          iconSize: 18,
+                          icon: Icon(
+                            s.locked ? Icons.lock : Icons.lock_open_outlined,
+                            color: s.locked ? scheme.primary : scheme.onSurfaceVariant,
+                          ),
+                          tooltip: s.locked ? 'Unlock (allow re-roll)' : 'Lock (keep on re-roll)',
+                          onPressed: () => onToggleLock(s),
+                        ),
+                        const SizedBox(width: 6),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -329,8 +367,7 @@ class _DayCard extends StatelessWidget {
                               Text(
                                 '${s.slot[0].toUpperCase()}${s.slot.substring(1)}'
                                 '  •  ${s.servings}x  •  ${s.kcal} kcal',
-                                style: TextStyle(
-                                    fontSize: 12, color: scheme.onSurfaceVariant),
+                                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                               ),
                             ],
                           ),

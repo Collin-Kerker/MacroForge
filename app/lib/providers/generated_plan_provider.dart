@@ -42,6 +42,19 @@ class GeneratedPlanService {
       return null;
     }
   }
+
+  // Lock / unlock a single slot in a day (flag only, no re-solve).
+  Future<GeneratedPlan?> toggleSlotLock(String day, int slotIndex, bool locked) async {
+    try {
+      final res = await api.dio.patch(
+        '/meal-plan/day/$day/lock',
+        data: {'slot_index': slotIndex, 'locked': locked},
+      );
+      return GeneratedPlan.fromJson(res.data);
+    } on DioException {
+      return null;
+    }
+  }
 }
 
 final generatedPlanServiceProvider = Provider<GeneratedPlanService>((ref) {
