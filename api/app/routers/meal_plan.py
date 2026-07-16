@@ -1,18 +1,21 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import MealPlan, User
+from app.models import MealPlan, User, FoodLog
 from app.routers.auth import get_current_user
 from fastapi import APIRouter, Depends, HTTPException
 from app.models import MealPlan, GeneratedPlan, Recipe, User
 from app.schemas import (
-    MealPlanResponse, MealPlanUpdate, GeneratedPlanResponse, DayRegenRequest, DAYS, SlotLockRequest
+    MealPlanResponse, MealPlanUpdate, GeneratedPlanResponse, DayRegenRequest, DAYS, SlotLockRequest, CookRequest
 )
 from app.solver import solve_week, solve_one_day, recompute_week_totals, solve_one_day_with_locks
 from app.grocery import build_grocery_list
-from app.prep import build_batch_prep, build_rolling_prep          # add to existing schema import
+from app.prep import build_batch_prep, build_rolling_prep
+from datetime import date, timedelta
+
 
 router = APIRouter(prefix="/meal-plan", tags=["meal-plan"])
+
 
 # default week: breakfast, lunch, dinner every day
 def _default_structure():
@@ -320,6 +323,132 @@ def toggle_slot_lock(
     days[day] = d
     week["days"] = days
     gen.week = week
+    db.commit()
+    db.refresh(gen)
+    return GeneratedPlanResponse(week=gen.week, generated_at=gen.generated_at)
+
+
+def _date_for_planday(day: str) -> date:
+    """Map a plan day (mon..sun) to its date in the CURRENT calendar week."""
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())  # weekday(): Mon=0
+    return monday + timedelta(days=DAYS.index(day))
+
+
+@router.post("/day/{day}/cook", response_model=GeneratedPlanResponse)
+def cook_slot(
+    day: str,
+    payload: CookRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if day not in DAYS:
+        raise HTTPException(400, f"day must be one of {DAYS}")
+    gen = db.execute(
+        select(GeneratedPlan).where(GeneratedPlan.user_id == current_user.id)
+    ).scalar_one_or_none()
+    if gen is None:
+        raise HTTPException(404, "Generate a week first.")
+
+    week = dict(gen.week)
+    days = dict(week.get("days", {}))
+    d = days.get(day)
+    if not d:
+        raise HTTPException(404, f"No {day} in the current week.")
+
+    # find the slot
+    target = next((s for s in d.get("slots", []) if s.get("slot_index") == payload.slot_index), None)
+    if target is None:
+        raise HTTPException(404, "Slot not found.")
+    if target.get("cooked"):
+        # already cooked — no-op, return as-is
+        return GeneratedPlanResponse(week=gen.week, generated_at=gen.generated_at)
+
+    log_date = _date_for_planday(day)
+
+    # write the food log (macros already snapshotted in the slot)
+    from uuid import UUID as _UUID
+    entry = FoodLog(
+        user_id=current_user.id,
+        food_item_id=None,
+        recipe_id=_UUID(target["recipe_id"]) if target.get("recipe_id") else None,
+        source="recipe",
+        log_date=log_date,
+        grams=None,
+        description=target["name"],
+        kcal=target["kcal"],
+        protein_g=target["protein"],
+        carbs_g=target["carbs"],
+        fat_g=target["fat"],
+    )
+    db.add(entry)
+
+    # mark the slot cooked
+    new_slots = []
+    for s in d.get("slots", []):
+        s2 = dict(s)
+        if s2.get("slot_index") == payload.slot_index:
+            s2["cooked"] = True
+        new_slots.append(s2)
+    d = dict(d); d["slots"] = new_slots
+    days[day] = d
+    week["days"] = days
+    gen.week = week
+
+    db.commit()
+    db.refresh(gen)
+    return GeneratedPlanResponse(week=gen.week, generated_at=gen.generated_at)
+
+
+@router.post("/day/{day}/uncook", response_model=GeneratedPlanResponse)
+def uncook_slot(
+    day: str,
+    payload: CookRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if day not in DAYS:
+        raise HTTPException(400, f"day must be one of {DAYS}")
+    gen = db.execute(
+        select(GeneratedPlan).where(GeneratedPlan.user_id == current_user.id)
+    ).scalar_one_or_none()
+    if gen is None:
+        raise HTTPException(404, "Generate a week first.")
+
+    week = dict(gen.week)
+    days = dict(week.get("days", {}))
+    d = days.get(day)
+    if not d:
+        raise HTTPException(404, f"No {day} in the current week.")
+
+    target = next((s for s in d.get("slots", []) if s.get("slot_index") == payload.slot_index), None)
+    if target is None:
+        raise HTTPException(404, "Slot not found.")
+
+    log_date = _date_for_planday(day)
+
+    # delete the matching recipe log for this recipe + date (mistake correction)
+    if target.get("recipe_id"):
+        from uuid import UUID as _UUID
+        db.query(FoodLog).filter(
+            FoodLog.user_id == current_user.id,
+            FoodLog.recipe_id == _UUID(target["recipe_id"]),
+            FoodLog.log_date == log_date,
+            FoodLog.source == "recipe",
+        ).delete()
+
+    # clear cooked flag
+    new_slots = []
+    for s in d.get("slots", []):
+        s2 = dict(s)
+        if s2.get("slot_index") == payload.slot_index:
+            s2["cooked"] = False
+        new_slots.append(s2)
+    d = dict(d); d["slots"] = new_slots
+    days[day] = d
+    week["days"] = days
+    gen.week = week
+
     db.commit()
     db.refresh(gen)
     return GeneratedPlanResponse(week=gen.week, generated_at=gen.generated_at)

@@ -236,3 +236,23 @@ class DayRegenRequest(BaseModel):
 class SlotLockRequest(BaseModel):
     slot_index: int
     locked: bool
+
+
+class FoodLogResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    food_item_id: int | None = None
+    recipe_id: UUID | None = None
+    source: str = "usda"
+    log_date: date
+    grams: float | None = None
+    description: str
+    kcal: float
+    protein_g: float
+    carbs_g: float
+    fat_g: float
+
+
+class CookRequest(BaseModel):
+    slot_index: int
