@@ -96,7 +96,7 @@ class HomeScreen extends ConsumerWidget {
                     onDismissed: (_) => ref.read(dayLogProvider.notifier).deleteEntry(e.id),
                     child: ListTile(
                       title: Text(e.description),
-                      subtitle: Text('${e.grams.round()}g  •  ${e.kcal.round()} kcal  •  '
+                      subtitle: Text('${e.grams != null ? "${e.grams!.round()}g" : "From your plan"}  •  ${e.kcal.round()} kcal  •  '
                           'P ${e.proteinG.round()} / C ${e.carbsG.round()} / F ${e.fatG.round()}'),
                     ),
                   )),

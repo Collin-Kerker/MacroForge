@@ -9,6 +9,7 @@ class SolvedSlot {
   final int carbs;
   final int fat;
   final bool locked;
+  final bool cooked;
 
   SolvedSlot({
     required this.slotIndex,
@@ -21,6 +22,7 @@ class SolvedSlot {
     required this.carbs,
     required this.fat,
     this.locked = false,
+    this.cooked = false,
   });
 
   factory SolvedSlot.fromJson(Map<String, dynamic> j) => SolvedSlot(
@@ -34,6 +36,7 @@ class SolvedSlot {
         carbs: j['carbs'],
         fat: j['fat'],
         locked: j['locked'] ?? false,
+        cooked: j['cooked'] ?? false,
       );
 }
 

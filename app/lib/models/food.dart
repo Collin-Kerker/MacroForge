@@ -27,9 +27,11 @@ class FoodItem {
 
 class FoodLogEntry {
   final String id;
-  final int foodItemId;
+  final int? foodItemId;
+  final String? recipeId;
+  final String source;
+  final double? grams;
   final String description;
-  final double grams;
   final double kcal;
   final double proteinG;
   final double carbsG;
@@ -37,24 +39,28 @@ class FoodLogEntry {
 
   FoodLogEntry({
     required this.id,
-    required this.foodItemId,
+    this.foodItemId,
+    this.recipeId,
+    this.source = 'usda',
+    this.grams,
     required this.description,
-    required this.grams,
     required this.kcal,
     required this.proteinG,
     required this.carbsG,
     required this.fatG,
   });
 
-  factory FoodLogEntry.fromJson(Map<String, dynamic> json) => FoodLogEntry(
-        id: json['id'],
-        foodItemId: json['food_item_id'],
-        description: json['description'],
-        grams: (json['grams'] as num).toDouble(),
-        kcal: (json['kcal'] as num).toDouble(),
-        proteinG: (json['protein_g'] as num).toDouble(),
-        carbsG: (json['carbs_g'] as num).toDouble(),
-        fatG: (json['fat_g'] as num).toDouble(),
+  factory FoodLogEntry.fromJson(Map<String, dynamic> j) => FoodLogEntry(
+        id: j['id'],
+        foodItemId: j['food_item_id'],
+        recipeId: j['recipe_id'],
+        source: j['source'] ?? 'usda',
+        grams: (j['grams'] as num?)?.toDouble(),
+        description: j['description'],
+        kcal: (j['kcal'] as num).toDouble(),
+        proteinG: (j['protein_g'] as num).toDouble(),
+        carbsG: (j['carbs_g'] as num).toDouble(),
+        fatG: (j['fat_g'] as num).toDouble(),
       );
 }
 

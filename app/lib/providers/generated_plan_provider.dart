@@ -55,6 +55,32 @@ class GeneratedPlanService {
       return null;
     }
   }
+
+  // Mark a planned meal as cooked — writes a food log for that day's date.
+  Future<GeneratedPlan?> cookSlot(String day, int slotIndex) async {
+    try {
+      final res = await api.dio.post(
+        '/meal-plan/day/$day/cook',
+        data: {'slot_index': slotIndex},
+      );
+      return GeneratedPlan.fromJson(res.data);
+    } on DioException {
+      return null;
+    }
+  }
+
+  // Un-mark a cooked meal — deletes that food log.
+  Future<GeneratedPlan?> uncookSlot(String day, int slotIndex) async {
+    try {
+      final res = await api.dio.post(
+        '/meal-plan/day/$day/uncook',
+        data: {'slot_index': slotIndex},
+      );
+      return GeneratedPlan.fromJson(res.data);
+    } on DioException {
+      return null;
+    }
+  }
 }
 
 final generatedPlanServiceProvider = Provider<GeneratedPlanService>((ref) {

@@ -7,6 +7,7 @@ import '../models/profile.dart';
 import '../providers/generated_plan_provider.dart';
 import '../providers/profile_provider.dart';
 import '../models/solved_day.dart';
+import '../providers/food_provider.dart';
 
 class WeekViewScreen extends ConsumerStatefulWidget {
   const WeekViewScreen({super.key});
@@ -62,6 +63,30 @@ class _WeekViewScreenState extends ConsumerState<WeekViewScreen> {
       return;
     }
     ref.invalidate(generatedPlanProvider);
+  }
+
+  Future<void> _toggleCooked(String dayKey, SolvedSlot slot) async {
+    final service = ref.read(generatedPlanServiceProvider);
+    final result = slot.cooked
+        ? await service.uncookSlot(dayKey, slot.slotIndex)
+        : await service.cookSlot(dayKey, slot.slotIndex);
+    if (!mounted) return;
+    if (result == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not update that meal.')),
+      );
+      return;
+    }
+    ref.invalidate(generatedPlanProvider);
+    ref.read(dayLogProvider.notifier).refresh();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(slot.cooked
+            ? 'Removed ${slot.name} from your log'
+            : 'Logged ${slot.name}'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> _editDay(String dayKey) async {
@@ -236,6 +261,7 @@ class _WeekViewScreenState extends ConsumerState<WeekViewScreen> {
                     onReroll: () => _rerollDay(day),
                     onEdit: () => _editDay(day),
                     onToggleLock: (slot) => _toggleLock(day, slot),
+                    onToggleCooked: (slot) => _toggleCooked(day, slot),
                   ),
               const SizedBox(height: 8),
               _WeekTotalsCard(totals: plan.weekTotals),
@@ -261,6 +287,7 @@ class _DayCard extends StatelessWidget {
   final VoidCallback onReroll;
   final VoidCallback onEdit;
   final void Function(SolvedSlot slot) onToggleLock;
+  final void Function(SolvedSlot slot) onToggleCooked;
 
   const _DayCard({
     required this.dayKey,
@@ -270,6 +297,7 @@ class _DayCard extends StatelessWidget {
     required this.onReroll,
     required this.onEdit,
     required this.onToggleLock,
+    required this.onToggleCooked,
   });
 
   @override
@@ -297,11 +325,11 @@ class _DayCard extends StatelessWidget {
                         width: 16, height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2)),
                   ),
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert, size: 20),
-                  onSelected: (v) {
-                    if (v == 'reroll') onReroll();
-                    if (v == 'edit') onEdit();
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert, size: 20),
+                    onSelected: (v) {
+                      if (v == 'reroll') onReroll();
+                      if (v == 'edit') onEdit();
                   },
                   itemBuilder: (_) => const [
                     PopupMenuItem(
@@ -345,6 +373,15 @@ class _DayCard extends StatelessWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
+                        SizedBox(
+                          width: 28,
+                          child: Checkbox(
+                            value: s.cooked,
+                            visualDensity: VisualDensity.compact,
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            onChanged: (_) => onToggleCooked(s),
+                          ),
+                        ),
                         IconButton(
                           visualDensity: VisualDensity.compact,
                           padding: EdgeInsets.zero,
@@ -372,8 +409,12 @@ class _DayCard extends StatelessWidget {
                             ],
                           ),
                         ),
-                        Text('P${s.protein} C${s.carbs} F${s.fat}',
-                            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                        Text(s.name,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    decoration: s.cooked ? TextDecoration.lineThrough : null,
+                                    color: s.cooked ? scheme.onSurfaceVariant : null,
+                                  )),
                       ],
                     ),
                   )),
