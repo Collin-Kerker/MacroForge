@@ -237,7 +237,6 @@ class SlotLockRequest(BaseModel):
     slot_index: int
     locked: bool
 
-
 class FoodLogResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -252,7 +251,6 @@ class FoodLogResponse(BaseModel):
     protein_g: float
     carbs_g: float
     fat_g: float
-
 
 class CookRequest(BaseModel):
     slot_index: int
