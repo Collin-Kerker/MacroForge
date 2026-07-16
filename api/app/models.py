@@ -62,9 +62,12 @@ class FoodLog(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    food_item_id = Column(Integer, nullable=False)  # USDA fdc_id
+    food_item_id = Column(Integer, nullable=True)
     log_date = Column(Date, nullable=False, index=True)
-    grams = Column(Numeric(7, 1), nullable=False)
+    grams = Column(Numeric(7, 1), nullable=True)
+    recipe_id = Column(UUID(as_uuid=True), nullable=True)
+    source = Column(String, nullable=False, server_default="usda")
+
 
     # snapshot of the food at log time (so edits/deletes to food_items
     # never retroactively change a past log)
